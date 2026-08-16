@@ -1,0 +1,233 @@
+# Self-contained standalone mock MCP servers for local testing and validation.
+# Deploys databricks-mcp, jira-mcp, and gitlab-mcp as lightweight Streamable HTTP
+# MCP servers that implement the MCP JSON-RPC protocol (2025-06-18).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: databricks-mcp
+  namespace: mcp-gateway-demo
+  labels:
+    app: databricks-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: databricks-mcp
+  template:
+    metadata:
+      labels:
+        app: databricks-mcp
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: mcp
+          image: registry.access.redhat.com/ubi9/nodejs-20:latest
+          command:
+            - node
+            - -e
+            - |
+              const http = require('http');
+              const tools = [
+                {
+                  name: 'databricks_query',
+                  description: 'Query rows from a Databricks table',
+                  inputSchema: { type: 'object', properties: { table: { type: 'string' } }, required: ['table'] }
+                },
+                {
+                  name: 'databricks_write',
+                  description: 'Insert or update notes in a Databricks table',
+                  inputSchema: { type: 'object', properties: { table: { type: 'string' }, note: { type: 'string' } }, required: ['table', 'note'] }
+                },
+                {
+                  name: 'databricks_delete',
+                  description: 'Delete rows from a Databricks table',
+                  inputSchema: { type: 'object', properties: { table: { type: 'string' }, writtenBy: { type: 'string' } }, required: ['table', 'writtenBy'] }
+                }
+              ];
+              http.createServer((req, res) => {
+                let raw = '';
+                req.on('data', c => raw += c);
+                req.on('end', () => {
+                  let body = {};
+                  try { body = JSON.parse(raw || '{}'); } catch {}
+                  const id = body.id ?? null;
+                  const method = body.method ?? '';
+                  res.writeHead(200, { 'Content-Type': 'application/json' });
+                  if (method === 'initialize') {
+                    return res.end(JSON.stringify({
+                      jsonrpc: '2.0', id,
+                      result: {
+                        protocolVersion: '2025-06-18',
+                        capabilities: { tools: { listChanged: true } },
+                        serverInfo: { name: 'databricks-mcp', version: '1.0.0' }
+                      }
+                    }));
+                  }
+                  if (method === 'notifications/initialized') {
+                    return res.end(JSON.stringify({ jsonrpc: '2.0', result: {} }));
+                  }
+                  if (method === 'tools/list') {
+                    return res.end(JSON.stringify({ jsonrpc: '2.0', id, result: { tools } }));
+                  }
+                  if (method === 'tools/call') {
+                    const name = body.params?.name;
+                    const args = body.params?.arguments || {};
+                    if (name === 'databricks_query') {
+                      return res.end(JSON.stringify({
+                        jsonrpc: '2.0', id,
+                        result: {
+                          content: [{
+                            type: 'text',
+                            text: JSON.stringify([{ id: 1, table: args.table || 'revenue', revenue: 1418000.00, status: 'active' }])
+                          }]
+                        }
+                      }));
+                    }
+                    return res.end(JSON.stringify({
+                      jsonrpc: '2.0', id,
+                      result: { content: [{ type: 'text', text: `Tool ${name} executed successfully.` }] }
+                    }));
+                  }
+                  res.end(JSON.stringify({ jsonrpc: '2.0', id, result: {} }));
+                });
+              }).listen(5113, () => console.log('databricks-mcp listening on 5113'));
+          ports: [{containerPort: 5113}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: databricks-mcp
+  namespace: mcp-gateway-demo
+spec:
+  selector:
+    app: databricks-mcp
+  ports:
+    - port: 5113
+      targetPort: 5113
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jira-mcp
+  namespace: mcp-gateway-demo
+  labels:
+    app: jira-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jira-mcp
+  template:
+    metadata:
+      labels:
+        app: jira-mcp
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: mcp
+          image: registry.access.redhat.com/ubi9/nodejs-20:latest
+          command:
+            - node
+            - -e
+            - |
+              const http = require('http');
+              const tools = [{ name: 'jira_get_ticket', description: 'Read Jira ticket details', inputSchema: { type: 'object', properties: { issueKey: { type: 'string' } }, required: ['issueKey'] } }];
+              http.createServer((req, res) => {
+                let raw = '';
+                req.on('data', c => raw += c);
+                req.on('end', () => {
+                  let body = {};
+                  try { body = JSON.parse(raw || '{}'); } catch {}
+                  const id = body.id ?? null;
+                  const method = body.method ?? '';
+                  res.writeHead(200, { 'Content-Type': 'application/json' });
+                  if (method === 'initialize') return res.end(JSON.stringify({ jsonrpc: '2.0', id, result: { protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'jira-mcp', version: '1.0.0' } } }));
+                  if (method === 'tools/list') return res.end(JSON.stringify({ jsonrpc: '2.0', id, result: { tools } }));
+                  if (method === 'tools/call') return res.end(JSON.stringify({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify({ key: body.params?.arguments?.issueKey || 'PROJ-1', summary: 'Mock Jira Ticket' }) }] } }));
+                  res.end(JSON.stringify({ jsonrpc: '2.0', id, result: {} }));
+                });
+              }).listen(5114, () => console.log('jira-mcp listening on 5114'));
+          ports: [{containerPort: 5114}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jira-mcp
+  namespace: mcp-gateway-demo
+spec:
+  selector:
+    app: jira-mcp
+  ports:
+    - port: 5114
+      targetPort: 5114
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitlab-mcp
+  namespace: mcp-gateway-demo
+  labels:
+    app: gitlab-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gitlab-mcp
+  template:
+    metadata:
+      labels:
+        app: gitlab-mcp
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: mcp
+          image: registry.access.redhat.com/ubi9/nodejs-20:latest
+          command:
+            - node
+            - -e
+            - |
+              const http = require('http');
+              const tools = [{ name: 'gitlab_get_file', description: 'Read file from GitLab repository', inputSchema: { type: 'object', properties: { project: { type: 'string' }, filePath: { type: 'string' } }, required: ['project', 'filePath'] } }];
+              http.createServer((req, res) => {
+                let raw = '';
+                req.on('data', c => raw += c);
+                req.on('end', () => {
+                  let body = {};
+                  try { body = JSON.parse(raw || '{}'); } catch {}
+                  const id = body.id ?? null;
+                  const method = body.method ?? '';
+                  res.writeHead(200, { 'Content-Type': 'application/json' });
+                  if (method === 'initialize') return res.end(JSON.stringify({ jsonrpc: '2.0', id, result: { protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'gitlab-mcp', version: '1.0.0' } } }));
+                  if (method === 'tools/list') return res.end(JSON.stringify({ jsonrpc: '2.0', id, result: { tools } }));
+                  if (method === 'tools/call') return res.end(JSON.stringify({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: 'Mock GitLab file contents' }] } }));
+                  res.end(JSON.stringify({ jsonrpc: '2.0', id, result: {} }));
+                });
+              }).listen(5115, () => console.log('gitlab-mcp listening on 5115'));
+          ports: [{containerPort: 5115}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitlab-mcp
+  namespace: mcp-gateway-demo
+spec:
+  selector:
+    app: gitlab-mcp
+  ports:
+    - port: 5115
+      targetPort: 5115

@@ -1,0 +1,10 @@
+{
+  "rarType": "urn:mcp-gateway-demo:agent:databricks",
+  "idField": "table",
+  "argIdKey": "table",
+  "actions": {
+    "databricks_read":  { "credsPath": "verify-rar/creds/dbx-read",  "default": true },
+    "jira_read":   { "default": true, "rarType": "urn:mcp-gateway-demo:agent:jira",   "idField": "issue_key", "argIdKey": "issueKey", "location": "https://jira.gateway.internal" },
+    "gitlab_read": { "default": true, "rarType": "urn:mcp-gateway-demo:agent:gitlab", "idField": "file_path",  "argIdKey": "filePath", "location": "https://gitlab.gateway.internal" }
+  }
+}

@@ -1,0 +1,12 @@
+.DS_Store
+*.swp
+.vscode/
+
+# Never commit a filled-in env file, only the .example template
+env/poc.env
+
+# Probe-run output logs: generated locally by scripts/lib/record.sh, and they
+# live inside the GitHub Pages source directory, so committing them would
+# publish raw capture output
+docs/poc-notes.md
+docs/probe-index.txt

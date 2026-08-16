@@ -1,0 +1,63 @@
+# Spike service: /policy stands in for the real policy callout (exchange +
+# RAR + Vault mint), /echo stands in for a thin MCP and reports the headers
+# it received so header injection is observed rather than assumed.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rhgw-spike
+  namespace: mcp-gateway-demo
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: rhgw-spike}}
+  template:
+    metadata:
+      labels: {app: rhgw-spike}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: spike
+          image: registry.access.redhat.com/ubi9/nodejs-20:latest
+          command:
+            - node
+            - -e
+            - |
+              const http = require('http');
+              http.createServer((req, res) => {
+                if (req.url === '/policy') {
+                  res.writeHead(200, { 'Content-Type': 'application/json' });
+                  return res.end(JSON.stringify({ decision: 'allow', credential: 'vault-ephemeral-pass-spike', scope: 'databricks:read' }));
+                }
+                if (req.url.startsWith('/echo')) {
+                  res.writeHead(200, { 'Content-Type': 'application/json' });
+                  return res.end(JSON.stringify(req.headers, null, 2));
+                }
+                res.writeHead(404);
+                res.end();
+              }).listen(8080, () => console.log('spike listening on 8080'));
+          ports: [{containerPort: 8080}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rhgw-spike
+  namespace: mcp-gateway-demo
+spec:
+  selector: {app: rhgw-spike}
+  ports: [{port: 8080, targetPort: 8080}]
+---
+# Route the Gateway at the echo upstream so there is a data path to protect.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: spike-route
+  namespace: mcp-gateway-demo
+spec:
+  parentRefs: [{name: mcp-gw}]
+  rules:
+    - matches: [{path: {type: PathPrefix, value: /echo}}]
+      backendRefs: [{name: rhgw-spike, port: 8080}]

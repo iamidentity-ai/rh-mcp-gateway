@@ -1,0 +1,98 @@
+# The SUBAGENT (read-only) enforcement profile: the same policy-service image
+# and the same code as the parent (08-policy-service.yaml), but a DIFFERENT
+# identity and a read-only config, so a delegated research subagent operates
+# under attenuated authority it cannot escape by prompt.
+#
+# Two things make it the subagent tier, both structural:
+#   1. GATEWAY_SPIFFE_MINT_ROLE=mcp-gateway-demo-subagent, so its actor SVID is the
+#      `reader-subagent` SPIFFE, and GATEWAY_EXCHANGE_CLIENT_ID/SECRET name the
+#      subagent tier's own exchange app. Every credential it releases is stamped
+#      act=reader-subagent (EXCH-P6 proved the attribution is real).
+#   2. It mounts the read-only config (gateway/config/databricks-subagent):
+#      only the tier-1 read tools exist there, so databricks_write / _delete
+#      resolve to unknown_tool and are denied before any exchange runs.
+#
+# It runs as the SAME mcp-gateway ServiceAccount (the Vault authority is a
+# wildcard mint `spiffe/role/+/mintjwt` plus verify-rar/creds/*, so it covers
+# the subagent role too). The distinct identity is the exchange app + the mint
+# role, not a distinct Vault approle.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: policy-service-subagent
+  namespace: mcp-gateway-demo
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: policy-service-subagent}}
+  template:
+    metadata:
+      labels: {app: policy-service-subagent}
+    spec:
+      # Optional: if a worker node in your cluster is already under CPU pressure from
+      # other stateful workloads (Kata VMs, the Vault pod), keep this
+      # stateless workload off it by uncommenting and setting your worker hostname:
+      # affinity:
+      #   nodeAffinity:
+      #     preferredDuringSchedulingIgnoredDuringExecution:
+      #       - weight: 100
+      #         preference:
+      #           matchExpressions:
+      #             - key: kubernetes.io/hostname
+      #               operator: NotIn
+      #               values: ["your-worker-node-name"]
+      serviceAccountName: mcp-gateway
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: policy
+          image: image-registry.openshift-image-registry.svc:5000/mcp-gateway-demo/policy-service@sha256:4fb44471aeb585eea220d84058e19e46a64551bd00e462bbd8a4ccb28b165f6c
+          ports: [{containerPort: 8090}]
+          env:
+            - {name: PORT, value: "8090"}
+            # DEMO ONLY: surface the per-call OBO (a ~5-min Vault-accepted
+            # credential) to the signed-in operator so the RFC 9396 RAR can be
+            # shown decoded in the JWT viewer. NEVER set true outside a demo.
+            - {name: POLICY_DEBUG_OBO, value: "true"}
+            - {name: VAULT_ADDR, value: "http://vault.vault.svc:8200"}
+            - {name: VAULT_ROLE, value: "mcp-gateway"}
+            - {name: VERIFY_TENANT_URL, value: "https://your-tenant.verify.ibm.com"}
+            - {name: GATEWAY_ACTOR_TOKEN_TYPE, value: "PocGatewaySPIFFE"}
+            # The subagent actor: a different SPIFFE role from the parent's
+            # mcp-gateway-demo. Its minted SVID names reader-subagent.
+            - {name: GATEWAY_SPIFFE_MINT_ROLE, value: "mcp-gateway-demo-subagent"}
+            - {name: CONFIG_DIR, value: /config}
+            - {name: TOOL_PREFIX, value: "dbx"}
+          envFrom:
+            # A DIFFERENT secret from the parent: GATEWAY_EXCHANGE_CLIENT_ID/
+            # SECRET here are the subagent tier's own exchange app, so the
+            # exchange stamps the subagent tier. Staged by scripts (never
+            # committed).
+            - secretRef: {name: gw-databricks-subagent-secrets}
+          volumeMounts:
+            - {name: config, mountPath: /config, readOnly: true}
+            - name: vault-token
+              mountPath: /var/run/secrets/vault-token
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+      volumes:
+        - name: config
+          configMap: {name: gw-databricks-subagent-config}
+        - name: vault-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  audience: vault
+                  expirationSeconds: 600
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: policy-service-subagent
+  namespace: mcp-gateway-demo
+spec:
+  selector: {app: policy-service-subagent}
+  ports: [{port: 8090, targetPort: 8090}]

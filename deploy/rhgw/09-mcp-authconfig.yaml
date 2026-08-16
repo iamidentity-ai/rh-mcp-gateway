@@ -1,0 +1,147 @@
+# Per-call authorization ON THE MCP PATH, which is the whole point.
+#
+# RHGW-P4/P5 put an AuthConfig in front of a stub on /echo. This puts one in
+# front of the MCP broker, so a real tools/call is authorized per call before
+# the broker ever federates it, and the credential the decision releases is
+# injected into the upstream call.
+---
+# Tell Envoy to run ext_authz for MCP traffic as well as the spike path.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: mcp-gw-extauthz
+  namespace: mcp-gateway-demo
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: mcp-gw
+  action: CUSTOM
+  provider:
+    name: authorino
+  rules:
+    - to:
+        - operation:
+            # Paths ONLY, deliberately no host constraint. Established
+            # empirically 2026-08-10 (Authorino request logs, policy-service
+            # logs): the MCP router's ext_proc runs BEFORE this ext_authz
+            # filter and REWRITES :authority to the upstream route's own
+            # hostname (databricks-mcp.gateway.internal) on every tools/call,
+            # so a host clause pinned to the public hostname silently
+            # excludes exactly the tool calls from authorization (all three
+            # 2026-08-10 03:59 test calls, including a tier-4 delete and a
+            # bearerless call, reached the thin MCP unauthorized while
+            # initialize still got authorized). The single per-call
+            # authorization therefore happens on the REWRITTEN request, which
+            # is also the request actually delivered upstream, so
+            # response.success header injection lands where the credential is
+            # consumed. The AuthConfig below claims BOTH hostnames for the
+            # same reason.
+            paths: ["/echo*", "/mcp*"]
+---
+apiVersion: authorino.kuadrant.io/v1beta3
+kind: AuthConfig
+metadata:
+  name: mcp-tool-authorization
+  namespace: mcp-gateway-demo
+spec:
+  hosts:
+    - mcp.gateway.internal
+    # The upstream route's hostname, REQUIRED (2026-08-10): the router's
+    # ext_proc rewrites :authority to this name before ext_authz runs, so
+    # the rewritten tools/call and the router's hairpin initialize both
+    # arrive at Authorino under it. Without it Authorino answers NOT_FOUND
+    # "Service not found", which surfaced as "server returned 4xx for
+    # initialize POST, likely a legacy SSE server" on every call.
+    - databricks-mcp.gateway.internal
+    # Same reason, added 2026-08-10 for the Jira/GitLab tools: every
+    # federated upstream needs its OWN hostname here or the router's
+    # rewritten hop 404s the same way.
+    - jira-mcp.gateway.internal
+    - gitlab-mcp.gateway.internal
+  # ── C1, authenticate the caller ─────────────────────────────────────────
+  # Anonymous ON PURPOSE, and this is the one place a reader should be
+  # suspicious, so it is spelled out. The callout receives the caller's
+  # bearer and IBM Verify validates it during the exchange: an invalid or
+  # absent token fails there and the call is refused. Turning on Authorino's
+  # own `jwt` evaluator here would validate it a second time, locally, which
+  # is worth doing in production and would prove nothing new here. What it
+  # WOULD do is conflate two failures (Authorino rejected the token vs Verify
+  # refused the exchange) in a probe built to tell them apart.
+  authentication:
+    anonymous:
+      anonymous: {}
+  # ── the callout: exchange, RAR, and the credential mint ─────────────────
+  metadata:
+    policy:
+      http:
+        url: http://policy-service.mcp-gateway-demo.svc:8090/authorize
+        method: POST
+        contentType: application/json
+        bodyParameters:
+          # HEADERS USE SELECTORS, NOT CEL EXPRESSIONS, ON PURPOSE. A CEL map
+          # index on an absent header (request.headers["x"]) throws
+          # "no such key: x", and that error aborts the ENTIRE metadata
+          # callout ("cannot fetch metadata", Authorino debug log, captured
+          # live 2026-08-10), so policy-service is never called and every
+          # request dies 403 with an empty body. Selectors resolve missing
+          # paths to empty instead. This took the whole composed path down
+          # for any caller not sending x-user-email; policy-service is
+          # null-safe on both fields, so empty is the correct degraded input.
+          #
+          # The caller's bearer. The policy service uses it as the SUBJECT of
+          # the RFC 8693 exchange, so the human's identity, not the gateway's,
+          # is what Verify evaluates.
+          authorization:
+            selector: context.request.http.headers.authorization
+          # The MCP JSON-RPC body: which tool, and with what arguments. This
+          # is what makes the decision per-call rather than per-endpoint, and
+          # it only arrives because the ext_authz provider is configured with
+          # includeRequestBodyInCheck (deploy/rhgw/05-extauthz.yaml).
+          # (request.body is a proto FIELD access, empty-string when absent,
+          # not a map index: safe to keep as an expression.)
+          mcp:
+            expression: 'request.body'
+          # The signed-in human's real mailbox, when a fronting tier (web)
+          # supplies it: the step-up park routes the emailed code here first,
+          # falling back to the subject's email claim / address-shaped UPN.
+          userEmail:
+            selector: context.request.http.headers.x-user-email
+  # ── C2, authorize THIS call ─────────────────────────────────────────────
+  authorization:
+    allowed:
+      patternMatching:
+        patterns:
+          - selector: auth.metadata.policy.decision
+            operator: eq
+            value: allow
+  # ── C4, inject where secretless ─────────────────────────────────────────
+  # The credential the decision released goes to the upstream MCP as headers.
+  # The agent never receives it: it asked for a tool call and got a result.
+  response:
+    success:
+      headers:
+        x-db-password:
+          plain:
+            selector: auth.metadata.policy.credential
+        x-db-username:
+          plain:
+            selector: auth.metadata.policy.username
+        x-granted-scope:
+          plain:
+            selector: auth.metadata.policy.scope
+      # Surface WHY on a refusal. A denied agent that is told nothing retries
+      # blindly; one told "step_up_required" can ask its human. The reason is
+      # a policy verdict, never an internal error string.
+      #
+      # message never becomes the HTTP body (Authorino source, confirmed
+      # 2026-08-10: it only ever becomes X-Ext-Auth-Reason). body is a
+      # DISTINCT field; pointing it at the whole callout object
+      # auto-serializes it verbatim, which is how a step-up txId and
+      # maskedDestination reach the caller on a deny, not just a bare reason.
+    unauthorized:
+      code: 403
+      message:
+        selector: auth.metadata.policy.reason
+      body:
+        selector: auth.metadata.policy

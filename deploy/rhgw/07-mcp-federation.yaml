@@ -1,0 +1,120 @@
+# The real MCP path through Red Hat's gateway.
+#
+# RHGW-P4 and P5 proved the Authorino callout seam on a plain HTTPRoute to a
+# stub. That was the right first step and it is not the same thing as an MCP
+# call: the MCP gateway operator deploys a broker-router and configures Envoy
+# for MCP protocol handling, tool federation and curation, and none of that
+# was exercised. This wires our own thin MCP behind their broker so a real
+# tools/call goes through their gateway with our authorization in front.
+#
+# Three objects, and the ordering matters:
+#   1. an HTTPRoute to the thin MCP, which is what a registration points at
+#   2. MCPServerRegistration, which federates that server's tools
+#   3. MCPGatewayExtension, which turns the Gateway into an MCP broker
+---
+# 1. The route to our thin MCP. The MCP gateway operator does not take a
+# Service directly: a registration references an HTTPRoute, and the route
+# carries the backend. Note this route is NOT how a caller reaches the tool;
+# the broker is. It exists so the registration has something to resolve.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: databricks-mcp-route
+  namespace: mcp-gateway-demo
+spec:
+  parentRefs:
+    - name: mcp-gw
+      # Name the LISTENER, matching the one the MCPGatewayExtension binds
+      # to. Without it the route attaches to the Gateway generally, the
+      # controller finds it ("target route found", "valid gateways
+      # discovered") and then stops without writing the server into the
+      # broker config or setting any status condition at all.
+      sectionName: http
+  # REQUIRED by the MCP gateway controller, not by Gateway API: a route with
+  # no hostname reconciles fine as a plain route and fails a registration
+  # with "must have at least one hostname". There is no external DNS on this
+  # cluster, so this is a synthetic name addressed by Host header from
+  # inside; nothing resolves it and nothing needs to.
+  #
+  # **CORRECTED [2026-08-10]** This hostname was `mcp.gateway.internal`, the
+  # SAME name as the extension's publicHost, and the comment below claimed
+  # the broker "never traverses this route's path at all". That was true of
+  # the broker's own long-lived management session (it dials the backend
+  # Service URL directly) and FALSE for the per-call path: the mcp-router
+  # ext_proc strips the tool prefix and re-submits the request through Envoy
+  # with `:authority` set to THIS route's hostname (mcp-router
+  # request_handlers.go, routeToUpstream -> WithAuthority(serverInfo.
+  # Hostname)). With both routes claiming mcp.gateway.internal, that hop
+  # matched mcp-gateway-route (path /mcp) and landed back on the BROKER,
+  # whose registry keys tools by their PREFIXED names, producing
+  # "tool 'databricks_query' not found: tool not found" on every authorized
+  # call while tools/list kept advertising the tools. Upstream's own samples
+  # (config/samples/httproute-calendar.yaml) give each federated server a
+  # DISTINCT hostname for exactly this reason. The upstream hop must also
+  # MATCH path /mcp (the registration's `path`), so the old /databricks-mcp
+  # prefix match + rewrite is gone: the route now matches what the router
+  # actually sends.
+  hostnames:
+    - databricks-mcp.gateway.internal
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /mcp}
+      backendRefs:
+        - name: databricks-mcp
+          port: 5113
+---
+# 2. Federate the thin MCP's tools through the broker.
+#
+# `prefix` namespaces this server's tools in the federated list, which is the
+# mechanism that makes "one endpoint, many MCP servers" workable without
+# name collisions. `hint`, `tags` and `category` feed the broker's
+# discover_tools meta-tool: this is the curation surface RHGW-P1 identified,
+# and it is genuinely useful and genuinely NOT authorization. A curated tool
+# list decides what an agent can SEE. It does not decide whether this call,
+# with these arguments, by this human, delegated to this agent, is allowed.
+# That distinction is the whole reason the callout exists.
+apiVersion: mcp.kuadrant.io/v1alpha1
+kind: MCPServerRegistration
+metadata:
+  name: databricks-mcp
+  namespace: mcp-gateway-demo
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: databricks-mcp-route
+  path: /mcp
+  prefix: dbx
+  hint: "Databricks reads and writes, gated per call by IBM Verify and Vault."
+  tags: ["databricks", "mcp-gateway-demo"]
+  category: ["data"]
+  state: Enabled
+---
+# 3. Extend the Gateway with MCP protocol support. This deploys the
+# broker-router and writes an EnvoyFilter against this Gateway's proxy.
+#
+# sectionName names the LISTENER, not the Gateway, and only one extension is
+# allowed per namespace.
+apiVersion: mcp.kuadrant.io/v1alpha1
+kind: MCPGatewayExtension
+metadata:
+  name: mcp-broker
+  namespace: mcp-gateway-demo
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: mcp-gw
+    # REQUIRED IN PRACTICE, despite the CRD describing it as "optional,
+    # defaults to same namespace". The controller does not apply that
+    # default: leaving it out fails reconciliation with
+    #   invalid: gateway target /mcp-gw not found
+    # and the empty segment before the slash is the only clue that a
+    # namespace was expected. Tech Preview, and worth reporting.
+    namespace: mcp-gateway-demo
+    sectionName: http
+  # The listener has no hostname (no external DNS here), and the controller
+  # refuses to derive a public host from a bare listener:
+  #   listener "http" ... has no hostname and spec.publicHost is not set
+  # publicHost is the documented escape hatch for exactly that.
+  publicHost: mcp.gateway.internal

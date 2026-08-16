@@ -1,0 +1,39 @@
+# Wire Authorino in as Envoy's external authorization provider.
+#
+# This is the seam. Envoy (deployed and configured by the MCP gateway
+# operator on a Gateway API Gateway) calls Authorino over gRPC ext_authz for
+# every request, and Authorino runs the AuthConfig: authenticate, call out,
+# authorize, and inject response headers.
+apiVersion: sailoperator.io/v1
+kind: Istio
+metadata:
+  name: default
+spec:
+  namespace: istio-system
+  version: v1.28-latest
+  values:
+    pilot:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+    meshConfig:
+      extensionProviders:
+        - name: authorino
+          envoyExtAuthzGrpc:
+            service: authorino-authorino-authorization.mcp-gateway-demo.svc.cluster.local
+            port: 50051
+            # WITHOUT THIS, per-call authorization on MCP is impossible.
+            # MCP carries the tool name and its arguments in a JSON-RPC POST
+            # body, so a policy that cannot see the body can only decide on
+            # the path and the caller: it can say "this identity may reach
+            # the MCP endpoint" and nothing at all about WHICH tool with
+            # WHICH arguments. That is the difference between an
+            # authorization gateway and a routing proxy.
+            includeRequestBodyInCheck:
+              maxRequestBytes: 65536
+              # Refuse to decide on a truncated body rather than authorize
+              # half a request. A body over the cap fails the check instead
+              # of silently being evaluated on a prefix.
+              allowPartialMessage: false
+              packAsBytes: false

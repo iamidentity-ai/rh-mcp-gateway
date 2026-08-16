@@ -1,0 +1,32 @@
+# A Gateway API Gateway of the istio class. The MCP gateway operator attaches
+# to this and configures Envoy on it.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: mcp-gw
+  namespace: mcp-gateway-demo
+spec:
+  gatewayClassName: istio
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+# Authorino instance: the external authorization service Envoy calls.
+# clusterWide=false keeps it watching this namespace only.
+apiVersion: operator.authorino.kuadrant.io/v1beta1
+kind: Authorino
+metadata:
+  name: authorino
+  namespace: mcp-gateway-demo
+spec:
+  clusterWide: false
+  listener:
+    tls:
+      enabled: false
+  oidcServer:
+    tls:
+      enabled: false

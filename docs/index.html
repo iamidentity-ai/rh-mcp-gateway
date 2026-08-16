@@ -1,0 +1,1623 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MCP Gateway + Authorino developer guide</title>
+<meta name="description" content="Step-by-step developer guide to composing the Red Hat MCP Gateway (Kuadrant), Authorino, and an IBM policy service on OpenShift, with animated diagrams and validation checkpoints.">
+<style>
+  :root {
+    --bg: #F5F7FA;
+    --surface: #FFFFFF;
+    --surface-alt: #EDF5FF;
+    --border: #DDE1E6;
+    --border-strong: #C1C7CD;
+    --accent: #0F62FE;
+    --accent-deep: #002D9C;
+    --text: #161616;
+    --text-secondary: #525252;
+    --text-muted: #8D8D8D;
+    --ok: #24A148;
+    --ok-fill: #DEFBE6;
+    --warn: #8D6A00;
+    --warn-fill: #FCF4D6;
+    --deny: #DA1E28;
+    --deny-fill: #FFF1F1;
+    --rh: #C21A11;
+    --rh-zone: rgba(218, 30, 40, 0.055);
+    --rh-zone-border: rgba(218, 30, 40, 0.35);
+    --ibm-zone: rgba(15, 98, 254, 0.055);
+    --ibm-zone-border: rgba(15, 98, 254, 0.40);
+    --code-bg: #1C1C21;
+    --code-text: #E8E8EC;
+    --code-comment: #909099;
+    --code-accent: #78A9FF;
+    --code-ok: #6FDC8C;
+    --code-warn: #F1C21B;
+    --diagram-card: #FFFFFF;
+    --diagram-line: #A8A8A8;
+    --shadow: 0 1px 3px rgba(15,98,254,0.06), 0 8px 24px rgba(15,98,254,0.05);
+    --radius: 10px;
+  }
+  :root[data-theme="dark"] {
+    --bg: #161616;
+    --surface: #262626;
+    --surface-alt: #1C2A42;
+    --border: #393939;
+    --border-strong: #525252;
+    --accent: #4589FF;
+    --accent-deep: #78A9FF;
+    --text: #F4F4F4;
+    --text-secondary: #C6C6C6;
+    --text-muted: #A8A8A8;
+    --ok: #42BE65;
+    --ok-fill: #0E2415;
+    --warn: #F1C21B;
+    --warn-fill: #2C2405;
+    --deny: #FA4D56;
+    --deny-fill: #2D0A0C;
+    --rh: #FA4D56;
+    --rh-zone: rgba(250, 77, 86, 0.08);
+    --rh-zone-border: rgba(250, 77, 86, 0.45);
+    --ibm-zone: rgba(69, 137, 255, 0.10);
+    --ibm-zone-border: rgba(69, 137, 255, 0.50);
+    --code-bg: #101014;
+    --code-text: #E8E8EC;
+    --code-comment: #8D8D93;
+    --code-accent: #78A9FF;
+    --code-ok: #6FDC8C;
+    --code-warn: #F1C21B;
+    --diagram-card: #262626;
+    --diagram-line: #6F6F6F;
+    --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.25);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161616;
+      --surface: #262626;
+      --surface-alt: #1C2A42;
+      --border: #393939;
+      --border-strong: #525252;
+      --accent: #4589FF;
+      --accent-deep: #78A9FF;
+      --text: #F4F4F4;
+      --text-secondary: #C6C6C6;
+      --text-muted: #A8A8A8;
+      --ok: #42BE65;
+      --ok-fill: #0E2415;
+      --warn: #F1C21B;
+      --warn-fill: #2C2405;
+      --deny: #FA4D56;
+      --deny-fill: #2D0A0C;
+      --rh: #FA4D56;
+      --rh-zone: rgba(250, 77, 86, 0.08);
+      --rh-zone-border: rgba(250, 77, 86, 0.45);
+      --ibm-zone: rgba(69, 137, 255, 0.10);
+      --ibm-zone-border: rgba(69, 137, 255, 0.50);
+      --code-bg: #101014;
+      --code-text: #E8E8EC;
+      --code-comment: #8D8D93;
+      --code-accent: #78A9FF;
+      --code-ok: #6FDC8C;
+      --code-warn: #F1C21B;
+      --diagram-card: #262626;
+      --diagram-line: #6F6F6F;
+      --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.25);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .flow { animation: none !important; }
+    .anim-dot { display: none; }
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  code, .mono {
+    font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+  .wrap {
+    max-width: 1220px;
+    margin: 0 auto;
+    padding: 0 24px 96px;
+    display: grid;
+    grid-template-columns: 232px minmax(0, 1fr);
+    gap: 48px;
+  }
+  @media (max-width: 1080px) {
+    .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; }
+    .toc { display: none; }
+  }
+
+  /* ---------- TOC rail ---------- */
+  .toc {
+    position: sticky;
+    top: 24px;
+    align-self: start;
+    padding-top: 56px;
+    font-size: 13px;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+  }
+  .toc-title {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin: 0 0 10px;
+  }
+  .toc ol { list-style: none; margin: 0 0 18px; padding: 0; }
+  .toc li { margin: 0; }
+  .toc a {
+    display: block;
+    padding: 4px 10px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-left: 2px solid var(--border);
+  }
+  .toc a:hover { color: var(--accent); border-left-color: var(--accent); }
+  .toc .toc-part {
+    margin-top: 14px;
+    font-weight: 600;
+    color: var(--text);
+    border-left: 2px solid transparent;
+    padding: 4px 10px 2px;
+    font-size: 12px;
+  }
+
+  main { min-width: 0; }
+
+  /* ---------- header ---------- */
+  .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    margin: 56px 0 10px;
+  }
+  h1 {
+    font-size: clamp(28px, 4vw, 40px);
+    line-height: 1.15;
+    margin: 0 0 14px;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .lede {
+    font-size: 18px;
+    color: var(--text-secondary);
+    max-width: 46em;
+    margin: 0 0 20px;
+  }
+  .meta-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; }
+  .chip {
+    font-size: 12.5px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    color: var(--text-secondary);
+    background: var(--surface);
+    white-space: nowrap;
+  }
+  .chip strong { color: var(--text); font-weight: 600; }
+
+  /* ---------- prose ---------- */
+  h2 { font-size: 24px; margin: 0 0 12px; letter-spacing: -0.01em; text-wrap: balance; }
+  h3 { font-size: 18px; margin: 28px 0 8px; }
+  p { margin: 0 0 14px; max-width: 72ch; }
+  ul, ol { margin: 0 0 14px; padding-left: 24px; max-width: 70ch; }
+  li { margin-bottom: 5px; }
+  .part-head {
+    margin: 72px 0 8px;
+    padding-top: 24px;
+    border-top: 2px solid var(--border-strong);
+  }
+  .part-head .part-label {
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin: 0 0 4px;
+  }
+  .part-head h2 { font-size: 27px; }
+  .part-head p { color: var(--text-secondary); }
+
+  /* ---------- steps ---------- */
+  .step {
+    position: relative;
+    margin: 44px 0 0;
+    padding: 26px 28px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+  .step-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 6px; }
+  .step-num {
+    flex: none;
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #FFFFFF;
+    font-weight: 600;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transform: translateY(4px);
+  }
+  .step h2 { font-size: 21px; margin: 0; }
+  .step .files {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    margin: 2px 0 14px 48px;
+  }
+  .step .files code { font-size: 12px; color: var(--text-secondary); }
+
+  /* ---------- code ---------- */
+  .code {
+    background: var(--code-bg);
+    color: var(--code-text);
+    border-radius: 8px;
+    margin: 14px 0 18px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .code-label {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--code-comment);
+    padding: 8px 14px 0;
+    font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .code pre {
+    margin: 0;
+    padding: 10px 14px 14px;
+    overflow-x: auto;
+    font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .code .c { color: var(--code-comment); }
+  .code .k { color: var(--code-accent); }
+  .code .g { color: var(--code-ok); }
+  .code .w { color: var(--code-warn); }
+  p code, li code, td code {
+    background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.5px 5px;
+    font-size: 0.86em;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  /* ---------- callouts ---------- */
+  .callout {
+    border-radius: 8px;
+    padding: 14px 18px 12px;
+    margin: 16px 0 18px;
+    border: 1px solid;
+    font-size: 15px;
+  }
+  .callout p { margin-bottom: 8px; }
+  .callout p:last-child { margin-bottom: 2px; }
+  .callout .co-title {
+    display: block;
+    font-size: 11.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .validate { background: var(--ok-fill); border-color: var(--ok); }
+  .validate .co-title { color: var(--ok); }
+  .fieldnote { background: var(--warn-fill); border-color: var(--warn); }
+  .fieldnote .co-title { color: var(--warn); }
+  .danger { background: var(--deny-fill); border-color: var(--deny); }
+  .danger .co-title { color: var(--deny); }
+  .note { background: var(--surface-alt); border-color: var(--accent); }
+  .note .co-title { color: var(--accent); }
+  .callout .code { margin: 10px 0 8px; }
+  .callout ul { margin-bottom: 8px; }
+
+  /* ---------- tables ---------- */
+  .tbl-scroll { overflow-x: auto; margin: 14px 0 20px; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 14px;
+    background: var(--surface);
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th {
+    background: var(--surface-alt);
+    font-weight: 600;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  td code { white-space: normal; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ---------- diagrams ---------- */
+  figure {
+    margin: 22px 0 26px;
+    padding: 0;
+  }
+  .fig-frame {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    overflow-x: auto;
+  }
+  figure svg { display: block; max-width: 100%; height: auto; min-width: 720px; margin: 0 auto; }
+  figcaption {
+    font-size: 13.5px;
+    color: var(--text-secondary);
+    margin-top: 10px;
+    max-width: 72ch;
+  }
+  .flow { stroke-dasharray: 6 7; animation: march 1.1s linear infinite; }
+  @keyframes march { to { stroke-dashoffset: -13; } }
+
+  .d-label { font-size: 14px; font-weight: 600; fill: var(--text); }
+  .d-sub { font-size: 11.5px; fill: var(--text-secondary); }
+  .d-mono { font-size: 11px; font-family: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace; fill: var(--text-secondary); }
+  .d-card { fill: var(--diagram-card); stroke: var(--border-strong); stroke-width: 1.5; }
+  .d-conn { fill: none; stroke: var(--diagram-line); stroke-width: 2; }
+  .d-accent { stroke: var(--accent); }
+  .d-ok { stroke: var(--ok); }
+  .d-deny { stroke: var(--deny); }
+  .d-zone-rh { fill: var(--rh-zone); stroke: var(--rh-zone-border); stroke-width: 1.5; stroke-dasharray: 7 6; }
+  .d-zone-ibm { fill: var(--ibm-zone); stroke: var(--ibm-zone-border); stroke-width: 1.5; stroke-dasharray: 7 6; }
+  .d-zone-label-rh { font-size: 12px; font-weight: 700; fill: var(--rh); }
+  .d-zone-label-ibm { font-size: 12px; font-weight: 700; fill: var(--accent); }
+  .d-mono-accent { font-size: 11px; font-family: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace; fill: var(--accent); }
+  .d-mono-ok { font-size: 11px; font-family: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace; fill: var(--ok); }
+  .d-mono-deny { font-size: 11px; font-family: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace; fill: var(--deny); }
+
+  .src-note {
+    font-size: 13px;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
+    margin-top: 64px;
+    padding-top: 16px;
+  }
+  .src-note code { font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div style="max-width: 1220px; margin: 20px auto 0; padding: 0 24px;">
+  <div style="background: var(--warn-fill); border: 1px solid var(--warn); border-radius: 10px; padding: 12px 18px; font-size: 14px; color: var(--text);">
+    <strong style="color: var(--warn);">Not an official IBM release or repository.</strong>
+    This project is not supported by IBM. It is independent testing and validation work, published for reference. No IBM support entitlement applies.
+  </div>
+</div>
+
+<div class="wrap">
+<nav class="toc" aria-label="Contents">
+  <p class="toc-title">Contents</p>
+  <ol>
+    <li class="toc-part">Orientation</li>
+    <li><a href="#big-picture">The composed architecture</a></li>
+    <li><a href="#how-to-read">How to read this guide</a></li>
+    <li class="toc-part">Part 1 · Foundations</li>
+    <li><a href="#step-0">0 · Platform gate</a></li>
+    <li><a href="#step-1">1 · Supporting services</a></li>
+    <li class="toc-part">Part 2 · Red Hat data plane</li>
+    <li><a href="#step-2">2 · Service Mesh 3 operator</a></li>
+    <li><a href="#step-3">3 · MCP Gateway operator</a></li>
+    <li><a href="#step-4">4 · Istio control plane</a></li>
+    <li><a href="#step-5">5 · Gateway + Authorino</a></li>
+    <li><a href="#step-6">6 · Wire ext_authz</a></li>
+    <li><a href="#step-7">7 · Prove the callout seam</a></li>
+    <li class="toc-part">Part 3 · IBM decision plane</li>
+    <li><a href="#step-8">8 · Deploy policy-service</a></li>
+    <li><a href="#step-9">9 · Federate MCP servers</a></li>
+    <li><a href="#step-10">10 · Authorize the MCP path</a></li>
+    <li><a href="#step-11">11 · Switch identity to JWT</a></li>
+    <li><a href="#step-12">12 · Step-up over the callout</a></li>
+    <li><a href="#step-13">13 · Post-use lease revoke</a></li>
+    <li class="toc-part">Part 4 · Prove it</li>
+    <li><a href="#e2e">End-to-end validation</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#appendix">Endpoints and sources</a></li>
+  </ol>
+</nav>
+
+<main>
+<p class="eyebrow">Secure agent workspace · developer guide</p>
+<h1>Per-call authorization on the Red Hat MCP Gateway</h1>
+<p class="lede">Stand up Kuadrant's MCP Gateway with Authorino on OpenShift, then put an IBM policy service behind it so that every single tool call an AI agent makes is exchanged, evaluated, and credentialed before it reaches a backend. From an empty namespace to a proven end-to-end path, with a validation checkpoint after every step.</p>
+<div class="meta-chips">
+  <span class="chip">OpenShift <strong>4.19</strong></span>
+  <span class="chip">mcp-gateway <strong>v0.7.1</strong> Tech Preview</span>
+  <span class="chip">AuthConfig <strong>v1beta3</strong></span>
+  <span class="chip">RFC <strong>8693</strong> exchange</span>
+  <span class="chip">RFC <strong>9396</strong> RAR</span>
+  <span class="chip">Path proven live <strong>2026-08-10</strong></span>
+</div>
+
+<section id="big-picture">
+  <h2 style="margin-top:48px">The composed architecture</h2>
+  <p>Two vendors, one request path, and a strict division of labor. Red Hat's MCP Gateway (a Kuadrant project, shipped Tech Preview in the Red Hat Operators catalog) does discovery, federation, routing, and tool curation. It does not do per-call authorization, and it is not trying to: its three CRDs carry no reference to token exchange or rich authorization requests. The seam is Authorino, Kuadrant's ext_authz service, which the MCP Gateway operator pulls in as a dependency. Authorino authenticates the caller, calls out to an IBM policy service mid-request, gates on the returned decision, and injects the released credential into the upstream call.</p>
+  <p><strong>Red Hat enforces the verdict; IBM makes it.</strong> This is a policy-enforcement-point versus policy-decision-point split, not a handoff of the authorization itself. Keep that framing: the composition never replaces the policy service, and the policy service never becomes a fork of the gateway.</p>
+
+  <figure>
+    <div class="fig-frame">
+    <svg viewBox="0 0 1360 640" role="img" aria-label="A tools/call request flows from the agent through Envoy, the mcp-router, and Authorino on the Red Hat side, out to the IBM policy service which exchanges the token at Verify and mints a credential from Vault, and only then onward to the thin MCP server. A direct path from agent to backend does not exist.">
+      <defs>
+        <marker id="ar-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--diagram-line)"/>
+        </marker>
+        <marker id="ar-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+        </marker>
+        <marker id="ar-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/>
+        </marker>
+      </defs>
+
+      <!-- Red Hat zone -->
+      <rect x="250" y="40" width="560" height="470" rx="12" class="d-zone-rh"/>
+      <text x="270" y="66" class="d-zone-label-rh">RED HAT · KUADRANT · enforces the verdict</text>
+
+      <!-- IBM zone -->
+      <rect x="850" y="40" width="480" height="470" rx="12" class="d-zone-ibm"/>
+      <text x="870" y="66" class="d-zone-label-ibm">IBM · decides every call</text>
+
+      <!-- Agent -->
+      <rect x="30" y="180" width="180" height="96" rx="10" class="d-card"/>
+      <text x="120" y="216" text-anchor="middle" class="d-label">AI agent</text>
+      <text x="120" y="236" text-anchor="middle" class="d-sub">sandboxed workspace</text>
+      <text x="120" y="256" text-anchor="middle" class="d-mono">holds no credentials</text>
+
+      <!-- Envoy gateway -->
+      <rect x="280" y="96" width="220" height="150" rx="10" class="d-card"/>
+      <text x="390" y="126" text-anchor="middle" class="d-label">mcp-gw · Envoy</text>
+      <text x="390" y="145" text-anchor="middle" class="d-sub">Gateway API, class istio</text>
+      <rect x="298" y="160" width="184" height="66" rx="7" fill="none" stroke="var(--rh-zone-border)" stroke-width="1.5"/>
+      <text x="390" y="184" text-anchor="middle" class="d-sub">mcp-router · ext_proc</text>
+      <text x="390" y="203" text-anchor="middle" class="d-mono">strips prefix, rewrites</text>
+      <text x="390" y="218" text-anchor="middle" class="d-mono">:authority · runs FIRST</text>
+
+      <!-- Authorino -->
+      <rect x="280" y="300" width="220" height="120" rx="10" class="d-card"/>
+      <text x="390" y="330" text-anchor="middle" class="d-label">Authorino</text>
+      <text x="390" y="349" text-anchor="middle" class="d-sub">ext_authz · gRPC :50051</text>
+      <text x="390" y="369" text-anchor="middle" class="d-mono">jwt check · callout · gate</text>
+      <text x="390" y="386" text-anchor="middle" class="d-mono">inject headers upstream</text>
+
+      <!-- Broker -->
+      <rect x="560" y="96" width="220" height="120" rx="10" class="d-card"/>
+      <text x="670" y="126" text-anchor="middle" class="d-label">mcp-broker</text>
+      <text x="670" y="145" text-anchor="middle" class="d-sub">federation + curation</text>
+      <text x="670" y="165" text-anchor="middle" class="d-mono">discover_tools · select_tools</text>
+      <text x="670" y="182" text-anchor="middle" class="d-mono">decides what agents SEE</text>
+
+      <!-- Thin MCPs -->
+      <rect x="560" y="360" width="220" height="120" rx="10" class="d-card"/>
+      <text x="670" y="392" text-anchor="middle" class="d-label">Thin MCP servers</text>
+      <text x="670" y="411" text-anchor="middle" class="d-sub">Databricks · Jira · GitLab</text>
+      <text x="670" y="431" text-anchor="middle" class="d-mono">injected per-call cred (dbx)</text>
+      <text x="670" y="447" text-anchor="middle" class="d-mono">or own static token (jira, gitlab)</text>
+
+      <!-- policy-service -->
+      <rect x="880" y="240" width="230" height="140" rx="10" class="d-card" style="stroke: var(--accent); stroke-width: 2;"/>
+      <text x="995" y="270" text-anchor="middle" class="d-label">policy-service</text>
+      <text x="995" y="289" text-anchor="middle" class="d-sub">the PDP · :8090 /authorize</text>
+      <text x="995" y="309" text-anchor="middle" class="d-mono">tier gate · RFC 9396 RAR</text>
+      <text x="995" y="326" text-anchor="middle" class="d-mono">exchange · mint · step-up</text>
+      <text x="995" y="343" text-anchor="middle" class="d-mono">:8092 revoke-only listener</text>
+
+      <!-- Verify -->
+      <rect x="1140" y="120" width="170" height="104" rx="10" class="d-card"/>
+      <text x="1225" y="152" text-anchor="middle" class="d-label">IBM Verify</text>
+      <text x="1225" y="171" text-anchor="middle" class="d-sub">RFC 8693 exchange</text>
+      <text x="1225" y="190" text-anchor="middle" class="d-mono">RAR policy · mfa_challenge</text>
+
+      <!-- Vault -->
+      <rect x="1140" y="330" width="170" height="104" rx="10" class="d-card"/>
+      <text x="1225" y="362" text-anchor="middle" class="d-label">Vault Enterprise</text>
+      <text x="1225" y="381" text-anchor="middle" class="d-sub">verify-rar plugin</text>
+      <text x="1225" y="400" text-anchor="middle" class="d-mono">lease ttl 300s</text>
+
+      <!-- flows -->
+      <path id="f-in" d="M 210 228 C 240 228 240 171 280 171" class="d-conn d-accent flow" marker-end="url(#ar-a)"/>
+      <text x="222" y="156" class="d-mono-accent">1 · tools/call</text>
+
+      <path id="f-authz" d="M 390 246 L 390 300" class="d-conn d-accent flow" marker-end="url(#ar-a)"/>
+      <text x="404" y="278" class="d-mono-accent">2 · ext_authz check</text>
+
+      <path id="f-callout" d="M 500 360 C 640 360 700 310 880 310" class="d-conn d-accent flow" marker-end="url(#ar-a)"/>
+      <text x="640" y="348" class="d-mono-accent">3 · POST /authorize</text>
+
+      <path id="f-verify" d="M 1110 268 C 1130 250 1120 210 1140 190" class="d-conn flow" marker-end="url(#ar-n)"/>
+      <text x="1128" y="240" text-anchor="middle" class="d-mono">4 · exchange</text>
+
+      <path id="f-vault" d="M 1110 352 C 1130 366 1120 372 1140 378" class="d-conn d-ok flow" marker-end="url(#ar-g)"/>
+      <text x="1132" y="352" text-anchor="middle" class="d-mono-ok">5 · mint</text>
+
+      <path id="f-inject" d="M 500 216 L 560 190" class="d-conn d-ok flow" marker-end="url(#ar-g)"/>
+      <text x="530" y="180" text-anchor="middle" class="d-mono-ok">6 · allow +</text>
+      <text x="530" y="195" text-anchor="middle" class="d-mono-ok">inject</text>
+
+      <path id="f-up" d="M 670 216 L 670 360" class="d-conn d-ok flow" marker-end="url(#ar-g)"/>
+      <text x="684" y="292" class="d-mono-ok">7 · authorized call</text>
+      <text x="684" y="308" class="d-mono-ok">+ ephemeral credential</text>
+
+      <!-- blocked direct path -->
+      <path id="f-block" d="M 120 276 C 130 480 380 545 556 470" fill="none" stroke="var(--deny)" stroke-width="2" stroke-dasharray="4 5"/>
+      <line x1="548" y1="462" x2="566" y2="480" stroke="var(--deny)" stroke-width="3"/>
+      <line x1="566" y1="462" x2="548" y2="480" stroke="var(--deny)" stroke-width="3"/>
+      <text x="330" y="560" text-anchor="middle" class="d-mono-deny">direct to backends: no route exists</text>
+
+      <!-- animated tokens -->
+      <g class="anim-dot">
+        <circle r="5" fill="var(--accent)">
+          <animateMotion dur="2.6s" repeatCount="indefinite" rotate="none"><mpath href="#f-in"/></animateMotion>
+        </circle>
+      </g>
+      <g class="anim-dot">
+        <circle r="4.5" fill="var(--accent)">
+          <animateMotion dur="2.2s" begin="-0.8s" repeatCount="indefinite" rotate="none"><mpath href="#f-callout"/></animateMotion>
+        </circle>
+      </g>
+      <g class="anim-dot">
+        <circle r="4.5" fill="var(--ok)">
+          <animateMotion dur="2.4s" begin="-1.2s" repeatCount="indefinite" rotate="none"><mpath href="#f-up"/></animateMotion>
+        </circle>
+      </g>
+
+      <!-- legend -->
+      <g transform="translate(30, 600)">
+        <line x1="0" y1="7" x2="30" y2="7" stroke="var(--accent)" stroke-width="2" marker-end="url(#ar-a)"/>
+        <text x="38" y="11" class="d-sub">request being authorized</text>
+        <line x1="230" y1="7" x2="260" y2="7" stroke="var(--ok)" stroke-width="2" marker-end="url(#ar-g)"/>
+        <text x="268" y="11" class="d-sub">authorized + credentialed</text>
+        <line x1="470" y1="7" x2="500" y2="7" stroke="var(--deny)" stroke-width="2" stroke-dasharray="4 5"/>
+        <text x="508" y="11" class="d-sub">structurally absent path</text>
+      </g>
+    </svg>
+    </div>
+    <figcaption>The composed request path. Every numbered hop happens on every tools/call: the router rewrites, Authorino checks, the policy service exchanges, and mints where the tool's action carries a credentials path (Databricks; Jira and GitLab tools are decided the same way but their thin MCPs hold their own static vendor tokens). The agent never holds a backend credential at any point.</figcaption>
+  </figure>
+
+  <h3>Who owns what</h3>
+  <div class="tbl-scroll">
+  <table>
+    <thead><tr><th>Component</th><th>Owner</th><th>Job</th><th>Authorizes?</th></tr></thead>
+    <tbody>
+      <tr><td><code>mcp-gw</code> (Gateway API + Envoy)</td><td>Red Hat / Kuadrant</td><td>The data plane that carries MCP traffic</td><td>No</td></tr>
+      <tr><td><code>mcp-router</code> (ext_proc)</td><td>Red Hat / Kuadrant</td><td>Parses JSON-RPC, strips the federation prefix, rewrites <code>:authority</code>, manages broker sessions. Runs before ext_authz</td><td>No</td></tr>
+      <tr><td><code>mcp-broker</code></td><td>Red Hat / Kuadrant</td><td>Federation and curation: decides what an agent can see</td><td>No</td></tr>
+      <tr><td>Authorino</td><td>Red Hat / Kuadrant</td><td>The ext_authz service: authenticates, calls out, gates on the decision, injects the credential</td><td>Enforces, does not decide</td></tr>
+      <tr><td><code>policy-service</code></td><td>IBM (your code)</td><td>The decision and the credential release: one RFC 8693 exchange, RFC 9396 RAR, Vault mint, step-up</td><td>Yes: every call</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="how-to-read">
+  <h2 style="margin-top:56px">How to read this guide</h2>
+  <p>Every step ends in a checkpoint, and the checkpoint is always an evidence string, never a status word. An HTTP 200 proves nothing by itself; a seeded database cell string-matched in a tool result proves the whole path. This discipline came from the POC that this guide is built on: its probe recorder writes whatever verdict the author passes it, so the team learned to trust only the captured output. Adopt the same posture. Run the checkpoint, read the output, and only then move on.</p>
+  <p>Three rules recur through the guide, so here they are once:</p>
+  <ul>
+    <li><strong>Every positive needs a negative.</strong> A gate that has never refused anything is indistinguishable from no gate. Most checkpoints below pair an allow with a deny.</li>
+    <li>An empty result is not evidence without a positive control. When a grep is supposed to come back empty (and one checkpoint below depends on exactly that), first prove the grep finds things when they exist.</li>
+    <li>Keep secrets off command lines. Bearer tokens travel in environment variables or files; anything typed into argv ends up in captures, shell history, and pod specs.</li>
+  </ul>
+  <div class="callout note">
+    <span class="co-title">Where this comes from</span>
+    <p>Everything here was proven live on an OpenShift 4.19.38 cluster in August 2026: manifests in <code>deploy/rhgw/</code> (files 00 through 11), probes RHGW-P1 through P11 and HITL-P3, and decision records D2, D9, D10, and D11 tracked alongside them. Names like the <code>mcp-gateway-demo</code> namespace, the <code>your-tenant.verify.ibm.com</code> tenant, and the <code>gateway.internal</code> hostnames are that build's own example values; substitute your own consistently.</p>
+  </div>
+</section>
+
+<!-- ==================== PART 1 ==================== -->
+<div class="part-head" id="part-1">
+  <p class="part-label">Part 1</p>
+  <h2>Foundations</h2>
+  <p>What must exist before the first gateway manifest is worth applying. This repository ships everything Part 2 onward references: every manifest, the policy service, mock MCP backends, and every probe script. Two helpers shorten this part: <code>scripts/bootstrap-demo.sh</code> creates the namespace, the ServiceAccount, the tool-config ConfigMaps, and placeholder Secrets in one run, and <code>deploy/rhgw/07b-mock-backends.yaml</code> stands in for real MCP upstreams. The remaining platform pieces this part points to by name (the prereq gate, the Vault install, the Verify tenant setup) are generic OpenShift/Vault/Verify plumbing you bring from your own platform; the commands and file paths for those describe what to build, not what ships here.</p>
+</div>
+
+<section class="step" id="step-0">
+  <div class="step-head"><div class="step-num">0</div><h2>Run the platform gate</h2></div>
+  <p class="files">Sources: <code>scripts/check-prereqs.sh</code> · <code>docs/runbook.md</code> §1</p>
+  <p>Start with a go/no-go check, not with manifests. The gate is read-only and answers one question: can this cluster and workstation support the build at all? You need an OpenShift cluster at 4.16 or later (the POC ran 4.19.38), cluster-admin, and a workstation with the full toolset the gate verifies: <code>oc</code>, <code>vault</code>, <code>helm</code>, <code>jq</code>, <code>curl</code>, Node 20+, and podman or docker.</p>
+  <div class="code"><span class="code-label">bash</span><pre>cp env/poc.env.example env/poc.env   <span class="c"># fill in tenant URL, kubeconfig, registry</span>
+bash scripts/check-prereqs.sh</pre></div>
+  <p>One of the gate's own checks is worth knowing by name, because you will reuse it when access drifts later, along with the runbook's version print:</p>
+  <div class="code"><span class="code-label">bash</span><pre><span class="c"># the gate's C1: are you actually cluster-admin, not just logged in?</span>
+oc auth can-i '*' '*' --all-namespaces
+
+<span class="c"># from runbook section 1: confirm the cluster version (the gate compares it to 4.16 itself)</span>
+oc version -o json | jq -r .openshiftVersion</pre></div>
+  <div class="callout validate">
+    <span class="co-title">Validate before you continue</span>
+    <p>The gate prints a per-check verdict and exits non-zero on any failure. <code>oc auth can-i</code> must print <code>yes</code>. If the gate passes but you changed clusters recently, re-run it: it is cheap, and every later step assumes its answers.</p>
+  </div>
+  <div class="callout fieldnote">
+    <span class="co-title">Learned live</span>
+    <p>Run every probe script in this guide with <code>bash</code>, never <code>zsh</code>. The POC's probe recorder refuses other shells outright because under zsh its timeout helper fails silently and probes get recorded as passing without ever running. That exact failure happened once before the guard existed.</p>
+  </div>
+</section>
+
+<section class="step" id="step-1">
+  <div class="step-head"><div class="step-num">1</div><h2>Stand up the supporting services</h2></div>
+  <p class="files">Sources: <code>deploy/base/</code> · <code>deploy/vault/</code> · <code>scripts/bootstrap-vault.sh</code> · <code>docs/runbook.md</code> §5-§11</p>
+  <p>The gateway composition sits on services that are each their own install: this guide keeps them to one step with pointers, because the gateway path is the subject here. You need four things running before step 2 matters:</p>
+  <ol>
+    <li><strong>Namespaces and the egress allowlist.</strong> <code>oc apply -k deploy/base</code> creates the workload namespace (here <code>mcp-gateway-demo</code>) with a default-deny NetworkPolicy baseline for agent pods. The namespace enforces the restricted Pod Security Standard, so every pod you create later needs <code>runAsNonRoot</code>, a seccomp profile, no privilege escalation, and all capabilities dropped.</li>
+    <li><strong>Vault Enterprise with the verify-rar plugin.</strong> Helm-install Vault (pin the fully qualified image <code>docker.io/hashicorp/vault-enterprise</code>: RHCOS resolves unqualified names against <code>registry.connect.redhat.com</code> first and the pod lands in ImagePullBackOff), create its Route, then run <code>bash scripts/bootstrap-vault.sh</code> to configure Kubernetes auth, SPIFFE issuance, and the verify-rar OAuth resource-server objects.</li>
+    <li><strong>An IBM Verify tenant</strong> with a token-exchange application per agent tier and the RAR types declared (<code>scripts/configure-rar-types.sh</code>). One application per tier is structural, not cosmetic: the <code>act</code> claim is a static per-application value, and RFC 8693 <code>may_act</code> names exactly one actor.</li>
+    <li><strong>Thin MCP servers and images.</strong> For a first build, <code>deploy/rhgw/07b-mock-backends.yaml</code> ships self-contained mock Databricks, Jira, and GitLab MCP servers (inline Node.js on a public UBI image, nothing to build). Real upstream MCP servers replace them later, and for those the cluster's internal registry must be enabled to hold your built images (TechZone clusters ship it <code>Removed</code>).</li>
+  </ol>
+  <div class="callout danger">
+    <span class="co-title">Do not learn this one live</span>
+    <p>After any <code>vault-0</code> restart, copy the verify-rar plugin binary into the pod <em>before</em> unsealing. Unsealing with the plugin absent leaves the mount's storage read-only, and the lockup hides: reads and mints keep working, and nothing fails until the next role or config write. Neither a plugin reload nor moving the mount clears it.</p>
+  </div>
+  <div class="callout validate">
+    <span class="co-title">Validate before you continue</span>
+    <p>Vault reports unsealed the way the repo's own scripts check it (<code>oc exec -n vault vault-0 -- vault status -format=json | jq .sealed</code> must print <code>false</code>), <code>bash scripts/probe-netpol.sh</code> proves the allowlist in both directions (a reachable allowed target and a refused disallowed one), and the internal registry accepts a push. The one input you can defer: the model API key, which only the agent runtime needs, not the gateway path.</p>
+  </div>
+</section>
+
+<!-- ==================== PART 2 ==================== -->
+<div class="part-head" id="part-2">
+  <p class="part-label">Part 2</p>
+  <h2>The Red Hat data plane</h2>
+  <p>Six manifests, applied in a deliberate order that is not their numeric order. What you get at the end of part 2 is a Gateway API Gateway running Envoy, with Authorino wired in as an ext_authz filter and proof that an external callout can gate a request.</p>
+</div>
+
+<section class="step" id="step-2">
+  <div class="step-head"><div class="step-num">2</div><h2>Install the Service Mesh 3 operator</h2></div>
+  <p class="files">Manifest: <code>deploy/rhgw/00-istio.yaml</code></p>
+  <p>The MCP Gateway extends a Gateway API Gateway and configures Envoy on it, so the GatewayClass must be Envoy-based. Red Hat's supported path is Service Mesh 3, whose operator (Sail) ships in the <code>redhat-operators</code> catalog.</p>
+  <div class="code"><span class="code-label">yaml · 00-istio.yaml</span><pre>apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: servicemeshoperator3
+  namespace: openshift-operators
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: servicemeshoperator3
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace</pre></div>
+  <div class="callout note">
+    <span class="co-title">Apply order</span>
+    <p>The POC's runbook applies <code>01-operator.yaml</code> before <code>00-istio.yaml</code> (operator subscriptions install in parallel anyway, and the OperatorGroup patch in step 3 is the urgent part). The numbered filenames are a reading order, not a strict apply order; this guide follows the runbook's sequence within each step.</p>
+  </div>
+  <div class="callout validate">
+    <span class="co-title">Validate before you continue</span>
+    <div class="code"><span class="code-label">bash</span><pre>oc get csv -n openshift-operators | grep -i servicemesh</pre></div>
+    <p>The CSV must reach phase <code>Succeeded</code>. No Istio control plane exists yet; that is step 4.</p>
+  </div>
+</section>
+
+<section class="step" id="step-3">
+  <div class="step-head"><div class="step-num">3</div><h2>Install the MCP Gateway operator</h2></div>
+  <p class="files">Manifest: <code>deploy/rhgw/01-operator.yaml</code></p>
+  <p>The operator lives in the <code>redhat-operators</code> catalog under the <code>preview</code> channel (its only channel: this is Tech Preview software, provider Kuadrant). The manifest creates the <code>mcp-gateway-system</code> namespace, an OperatorGroup, and the Subscription.</p>
+  <div class="code"><span class="code-label">yaml · 01-operator.yaml (Subscription)</span><pre>apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: mcp-gateway
+  namespace: mcp-gateway-system
+spec:
+  channel: preview
+  installPlanApproval: Automatic
+  name: mcp-gateway
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace</pre></div>
+  <div class="callout fieldnote">
+    <span class="co-title">Learned live</span>
+    <p>Patch the OperatorGroup to AllNamespaces immediately after applying. Created with <code>targetNamespaces</code> set, the operator's Authorino, DNS, and Limitador dependencies all fail with <code>OwnNamespace InstallModeType not supported</code>:</p>
+    <div class="code"><span class="code-label">bash</span><pre>oc apply -f deploy/rhgw/01-operator.yaml
+oc patch operatorgroup mcp-gateway-og -n mcp-gateway-system \
+  --type=json -p '[{"op":"remove","path":"/spec/targetNamespaces"}]'
+oc apply -f deploy/rhgw/00-istio.yaml</pre></div>
+  </div>
+  <p>While the install settles, inventory what you just got. These two checks are the product-surface probes (RHGW-P1 and P2 in the POC), and the second one is an absence check that carries the whole architectural argument:</p>
+  <div class="code"><span class="code-label">bash</span><pre><span class="c"># What is this package? (expect: provider Kuadrant, channel preview, Tech Preview)</span>
+oc get packagemanifest mcp-gateway -n openshift-marketplace -o json \
+  | jq -r '{name: .metadata.name, catalog: .status.catalogSourceDisplayName,
+            provider: .status.provider.name, channels: [.status.channels[].name]}'
+
+<span class="c"># Do the gateway CRDs carry ANY authorization surface? (expect: no output at all)</span>
+for crd in mcpgatewayextensions mcpserverregistrations mcpvirtualservers; do
+  oc get crd "${crd}.mcp.kuadrant.io" -o json | jq -r tostring \
+    | grep -oiE "authorization_details|token.exchange|rfc.?8693|rfc.?9396" | sort -u
+done</pre></div>
+  <div class="callout validate">
+    <span class="co-title">Validate before you continue</span>
+    <p><code>oc get csv -n mcp-gateway-system</code> shows <code>mcp-gateway.v0.7.1</code> (or newer) at phase <code>Succeeded</code>, and the grep above returns nothing. That empty grep is evidence, not absence of evidence: it proves the per-call authorization you build in part 3 has to come from the composition, because the gateway itself carries none. Positive-control the grep first if you doubt it (grep the AuthConfig CRD for <code>authorization</code>; it hits).</p>
+  </div>
+</section>
+
+<section class="step" id="step-4">
+  <div class="step-head"><div class="step-num">4</div><h2>Create the Istio control plane</h2></div>
+  <p class="files">Manifest: <code>deploy/rhgw/02-istio-cr.yaml</code></p>
+  <p>One minimal <code>Istio</code> resource whose only job is registering the <code>istio</code> GatewayClass. You are not building a mesh; no workload gets a sidecar.</p>
+  <div class="code"><span class="code-label">bash</span><pre>oc create namespace istio-system
+oc apply -f deploy/rhgw/02-istio-cr.yaml</pre></div>
+  <div class="code"><span class="code-label">yaml · 02-istio-cr.yaml</span><pre>apiVersion: sailoperator.io/v1
+kind: Istio
+metadata:
+  name: default
+spec:
+  namespace: istio-system
+  version: v1.28-latest
+  values:
+    pilot:
+      resources:
+        requests:
+          <span class="k">cpu: 100m</span>      <span class="c"># istiod default is 500m / 2Gi and will not</span>
+          <span class="k">memory: 256Mi</span>  <span class="c"># schedule on a busy cluster: Pending, "Insufficient cpu"</span></pre></div>
+  <div class="callout validate">
+    <span class="co-title">Validate before you continue</span>
+    <div class="code"><span class="code-label">bash</span><pre>oc get pods -n istio-system          <span class="c"># istiod Running</span>
+oc get gatewayclass istio            <span class="c"># ACCEPTED True</span></pre></div>
+    <p>If istiod sits Pending, check node requests (not usage: <code>oc describe node</code> Allocated resources is what predicts scheduling) before touching the CR.</p>
+  </div>
+</section>
+
+<section class="step" id="step-5">
+  <div class="step-head"><div class="step-num">5</div><h2>Create the Gateway and the Authorino instance</h2></div>
+  <p class="files">Manifest: <code>deploy/rhgw/03-gateway.yaml</code></p>
+  <p>Two resources in one file, both in the workload namespace. The Gateway is what the MCP Gateway operator will later attach to and configure Envoy on. The Authorino resource is an instance CR (the Authorino operator arrived as a dependency of the MCP Gateway operator in step 3); it runs namespace-scoped with TLS off, which is fine for an in-cluster POC seam and must be revisited for production.</p>
+  <div class="code"><span class="code-label">yaml · 03-gateway.yaml</span><pre>apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: mcp-gw
+  namespace: mcp-gateway-demo
+spec:
+  gatewayClassName: istio
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+apiVersion: operator.authorino.kuadrant.io/v1beta1
+kind: Authorino
+metadata:
+  name: authorino
+  namespace: mcp-gateway-demo
+spec:
+  clusterWide: false
+  listener:
+    tls: { enabled: false }
+  oidcServer:
+    tls: { enabled: false }</pre></div>
+  <div class="callout fieldnote">
+    <span class="co-title">Learned live</span>
+    <p>The Gateway will report <code>Programmed: False</code> with "address pending for hostname" forever on a cluster with no external load balancer. Do not chase it. The Envoy pod runs, and the in-cluster Service <code>mcp-gw-istio.mcp-gateway-demo.svc</code> is routable, which is all this architecture needs.</p>
+  </div>
+  <div class="callout validate">
+    <span class="co-title">Validate before you continue</span>
+    <div class="code"><span class="code-label">bash</span><pre>oc get pods -n mcp-gateway-demo | grep -E 'mcp-gw|authorino'   <span class="c"># both Running</span>
+oc get svc mcp-gw-istio -n mcp-gateway-demo                    <span class="c"># the data-plane Service exists</span>
+
+<span class="c"># quick shape check, distilled from RHGW-P3 (the recorded probe goes deeper,</span>
+<span class="c"># enumerating each section's evaluators; see scripts/probe-rhgw.sh)</span>
+oc get crd authconfigs.authorino.kuadrant.io -o json | jq -r \
+  '.spec.versions[-1].schema.openAPIV3Schema.properties.spec.properties | keys'</pre></div>
+    <p>The keys list must include <code>authentication</code>, <code>metadata</code>, <code>authorization</code>, and <code>response</code>. Those four names are the entire integration surface you build on from here.</p>
+  </div>
+</section>
+
+<section class="step" id="step-6">
+  <div class="step-head"><div class="step-num">6</div><h2>Wire Envoy to Authorino (ext_authz)</h2></div>
+  <p class="files">Manifest: <code>deploy/rhgw/05-extauthz.yaml</code></p>
+  <p>This is the seam. Envoy calls Authorino over gRPC ext_authz for every matched request, and Authorino runs the AuthConfig: authenticate, call out, authorize, inject. The wiring is not an EnvoyFilter: it is the same <code>Istio</code> CR from step 4, re-declared with an extension provider added to <code>meshConfig</code>. Applying it updates the one object.</p>
+  <div class="code"><span class="code-label">yaml · 05-extauthz.yaml (the added block)</span><pre>    meshConfig:
+      extensionProviders:
+        - name: authorino
+          envoyExtAuthzGrpc:
+            service: authorino-authorino-authorization.mcp-gateway-demo.svc.cluster.local
+            port: 50051
+            <span class="k">includeRequestBodyInCheck:</span>
+              maxRequestBytes: 65536
+              allowPartialMessage: false
+              packAsBytes: false</pre></div>
+  <p><code>includeRequestBodyInCheck</code> is what makes per-call MCP authorization possible at all. The tool name and its arguments ride in a JSON-RPC POST body; without the body, a policy can only decide on path and caller, which is the difference between an authorization gateway and a routing proxy. <code>allowPartialMessage: false</code> means a body over the 64&nbsp;KB cap fails the check rather than being authorized on a prefix: closed, not truncated.</p>
+  <div class="callout danger">
+    <span class="co-title">One object, two files</span>
+    <p><code>02-istio-cr.yaml</code> and <code>05-extauthz.yaml</code> define the same Kubernetes object. Apply 05 after (or instead of) 02, never 02 after 05: re-applying 02 silently removes the extension provider, <code>oc apply</code> reports "configured" either way, and the only symptom is that authorization stops happening.</p>
+  </div>
+  <div class="callout validate">
+    <span class="co-title">Validate before you continue</span>
+    <div class="code"><span class="code-label">bash</span><pre>oc apply -f deploy/rhgw/05-extauthz.yaml
+oc get istio default -o yaml | grep -A4 extensionProviders   <span class="c"># provider present</span></pre></div>
+    <p>Nothing enforces yet: the provider exists but no AuthorizationPolicy activates it on any route. Step 7 creates the initial binding (<code>mcp-gw-extauthz</code>, scoped to <code>/echo*</code>) alongside the spike's AuthConfig, and step 10 extends that same object to the MCP path.</p>
+  </div>
+</section>
+
+<section class="step" id="step-7">
+  <div class="step-head"><div class="step-num">7</div><h2>Prove the callout seam with a spike</h2></div>
+  <p class="files">Manifests: <code>deploy/rhgw/04-spike.yaml</code> · <code>deploy/rhgw/06-authconfig.yaml</code> · probe: <code>scripts/probe-rhgw-callout.sh</code></p>
+  <p>Before putting the real policy service in the loop, prove the mechanism with a stand-in. The spike is one small Deployment with two endpoints: <code>/policy</code> pretends to be the callout (it returns a decision and fake credential fields), and <code>/echo</code> pretends to be a thin MCP and reports the headers it actually received, so header injection is observed rather than assumed. It runs as an inline Node.js server on a public UBI image, so there is nothing to build or push. An HTTPRoute maps <code>/echo</code> through the Gateway so there is a data path to protect.</p>
+  <p>Two applies. The AuthConfig's manifest also carries the initial ext_authz binding (the AuthorizationPolicy <code>mcp-gw-extauthz</code>, scoped to <code>/echo*</code> for now); without that binding nothing would call Authorino at all:</p>
+  <div class="code"><span class="code-label">bash</span><pre>oc apply -f deploy/rhgw/06-authconfig.yaml   <span class="c"># AuthConfig mcp-callout + the /echo*-only AuthorizationPolicy</span>
+oc apply -f deploy/rhgw/04-spike.yaml        <span class="c"># spike Deployment + Service + /echo HTTPRoute</span></pre></div>
+  <div class="callout danger">
+    <span class="co-title">One object, two files: apply 06 before 09, never after</span>
+    <p>Step 10's manifest re-declares this same AuthorizationPolicy extended to <code>/echo*</code> and <code>/mcp*</code>, and owns it from then on. Re-applying this step's file afterward reverts the rule to <code>/echo*</code> only, <code>oc apply</code> reports "configured" both times, and the MCP path silently loses authorization while every object looks healthy. That exact failure happened live in the build this guide is drawn from.</p>
+  </div>
+  <p>The AuthConfig is your first look at the four-stage shape everything later reuses. Read it top to bottom as a pipeline:</p>
+  <div class="code"><span class="code-label">yaml · 06-authconfig.yaml</span><pre>apiVersion: authorino.kuadrant.io/v1beta3
+kind: AuthConfig
+metadata:
+  name: mcp-callout
+  namespace: mcp-gateway-demo
+spec:
+  hosts:
+    - mcp-gw-istio.mcp-gateway-demo.svc.cluster.local
+    - mcp-gw-istio.mcp-gateway-demo.svc
+  authentication:
+    anonymous:
+      anonymous: {}            <span class="c"># deliberate scaffolding: isolates the callout mechanism.</span>
+                               <span class="c"># The production config uses jwt (step 11).</span>
+  metadata:
+    policy:
+      http:
+        url: http://rhgw-spike.mcp-gateway-demo.svc:8080/policy
+        method: GET
+        contentType: application/json
+        headers:
+          Accept:
+            value: application/json
+  authorization:
+    allowed:
+      patternMatching:
+        patterns:
+          - selector: auth.metadata.policy.decision
+            operator: eq
+            value: allow
+  response:
+    success:
+      headers:
+        x-db-password:
+          plain: { selector: auth.metadata.policy.credential }
+        x-granted-scope:
+          plain: { selector: auth.metadata.policy.scope }</pre></div>
+  <div class="callout fieldnote">
+    <span class="co-title">Learned live</span>
+    <p>Never set <code>hosts: ["*"]</code>. A wildcard claims every host on the gateway, and any later AuthConfig for the MCP path reports "No hosts linked to the resource" with no hint that another AuthConfig took the hostname. Narrow every AuthConfig to the hosts it owns.</p>
+  </div>
+  <p>Now the two-sided checkpoint, which is the pattern for everything that follows. Positive: a request through the gateway reaches the echo upstream carrying headers whose values were produced by the callout. Negative: patch the AuthConfig to require a decision the callout does not return, and the same request must die with 403. Without the negative, you have only shown that headers can be set, not that the callout gates anything.</p>
+  <div class="code"><span class="code-label">bash · RHGW-P4 (positive)</span><pre><span class="c"># from any in-cluster pod:</span>
+curl -sS http://mcp-gw-istio.mcp-gateway-demo.svc/echo \
+  | grep -vE 'x-envoy-peer-metadata|x-envoy-decorator'
+<span class="g"># PASS evidence: the echoed request contains x-db-password and x-granted-scope</span></pre></div>
+  <div class="code"><span class="code-label">bash · RHGW-P5 (negative)</span><pre>oc patch authconfig mcp-callout -n mcp-gateway-demo --type=json \
+  -p '[{"op":"replace","path":"/spec/authorization/allowed/patternMatching/patterns/0/value","value":"deny"}]'
+sleep 20    <span class="c"># propagation; an immediate check can race</span>
+curl -sS -o /dev/null -w 'HTTP %{http_code}\n' http://mcp-gw-istio.mcp-gateway-demo.svc/echo
+<span class="g"># PASS evidence: HTTP 403</span>
+oc patch authconfig mcp-callout -n mcp-gateway-demo --type=json \
+  -p '[{"op":"replace","path":"/spec/authorization/allowed/patternMatching/patterns/0/value","value":"allow"}]'</pre></div>
+  <div class="callout validate">
+    <span class="co-title">Validate before you continue</span>
+    <p>Both evidence strings captured: injected headers present on the positive leg, HTTP 403 on the mismatch leg, and the patch reverted (re-run the positive leg once more to prove the revert took). If a probe dies mid-run, remember it may have left the AuthConfig in the deny state.</p>
+  </div>
+</section>
+
+<!-- ==================== PART 3 ==================== -->
+<div class="part-head" id="part-3">
+  <p class="part-label">Part 3</p>
+  <h2>The IBM decision plane</h2>
+  <p>The spike proved the seam. Now replace the stand-in with the real policy decision point, federate real MCP servers behind the broker, and move the AuthConfig onto the MCP path. This is where every hard-won routing and expression-language lesson lives; read the field notes even if you skip the prose.</p>
+</div>
+
+<section class="step" id="step-8">
+  <div class="step-head"><div class="step-num">8</div><h2>Deploy the policy service</h2></div>
+  <p class="files">Manifests: <code>deploy/rhgw/08-policy-service.yaml</code> · <code>08b-policy-service-subagent.yaml</code> · source: <code>policy-service/src/server.js</code></p>
+  <p>The policy service is deliberately boring: one Node&nbsp;20 file, zero npm dependencies, built-in <code>fetch</code> and <code>http</code> only. A policy decision point should be auditable in one sitting. It exposes five routes on its main listener (default port 8090): <code>POST /authorize</code>, <code>POST /hitl/complete</code>, <code>POST /lease/revoke</code>, <code>GET /me/audit</code>, and <code>GET /healthz</code>, plus a second listener (8092) that serves only revoke and health, which matters in step 13.</p>
+  <p>On every <code>tools/call</code>, <code>/authorize</code> runs this chain, denying at the first failure:</p>
+  <ol>
+    <li>Parse the Authorino body parameters (the caller's bearer, the raw MCP JSON-RPC body, the optional user email).</li>
+    <li>Allow non-tool-call methods (<code>initialize</code>, <code>notifications/*</code>, <code>tools/list</code>) as <code>not_a_tool_call</code>, and the broker's own meta-tools (<code>discover_tools</code>, <code>select_tools</code>, <code>filter_tools_by_tags</code>, <code>list_tags</code>) as <code>broker_meta_tool</code>. No credential is minted for either.</li>
+    <li>Strip the federation prefix (<code>TOOL_PREFIX</code>), resolve the tool in <code>tools.json</code> for its tier and action, map the action through <code>rar.json</code> for a credentials path. Unknown tool, unmapped action, and tier-4 tools deny here, locally, before any external call.</li>
+    <li>Build the RFC 9396 <code>authorization_details</code> from the tool and its arguments, including dual-shape <code>vault:path_access</code> legs (both <code>path_constraint</code>/<code>action</code> and <code>path</code>/<code>capabilities</code>, because Vault Enterprise builds read different field names).</li>
+    <li>Log in to Vault (Kubernetes auth, fresh each call), mint the gateway's own actor SVID.</li>
+    <li>Run one RFC 8693 exchange at Verify: subject token = the caller's bearer, actor token = the SVID, plus the RAR and scope. Verify evaluates its access policy against the requested details and stamps the <code>act</code> claim.</li>
+    <li>If Verify answers <code>mfa_challenge</code>, park the transaction and deny with <code>step_up_required</code> and a transaction id (step 12).</li>
+    <li>Otherwise, for actions carrying a credentials path, present the exchanged token itself to Vault as <code>X-Vault-Token</code> and mint the ephemeral credential (lease TTL 300 seconds), answering <code>decision: allow</code> with the credential, username, scope, and lease id. Static-credential tools (Jira, GitLab) run the same decision but get a decision-only allow with no credential fields; their thin MCPs hold their own vendor tokens.</li>
+  </ol>
+  <div class="callout note">
+    <span class="co-title">Contract with Authorino: a deny is HTTP 200</span>
+    <p>Authorino treats a non-2xx metadata response as an evaluator failure, which is a different and far less legible thing than a policy decision. The policy service always answers 200 with <code>decision: "allow"</code> or <code>decision: "deny"</code> plus a reason, and the AuthConfig gates on the decision field. Keep this contract in your own implementation.</p>
+  </div>
+  <p>The Deployment's load-bearing configuration, with every environment variable named. Secret values arrive by Secret reference and the tool/RAR config by ConfigMap; nothing sensitive is inline:</p>
+  <div class="code"><span class="code-label">yaml · 08-policy-service.yaml (trimmed)</span><pre>spec:
+  serviceAccountName: mcp-gateway        <span class="c"># exactly the needed Vault authority and no more: mint an</span>
+                                         <span class="c"># actor SVID, release verify-rar/creds/*, revoke a lease</span>
+  containers:
+    - name: policy
+      image: image-registry.openshift-image-registry.svc:5000/mcp-gateway-demo/policy-service@sha256:...
+      ports: [{containerPort: 8090}]
+      env:
+        - {name: PORT,                    value: "8090"}
+        - {name: VAULT_ADDR,              value: "http://vault.vault.svc:8200"}
+        - {name: VAULT_ROLE,              value: "mcp-gateway"}
+        - {name: VERIFY_TENANT_URL,       value: "https://your-tenant.verify.ibm.com"}
+        - {name: GATEWAY_ACTOR_TOKEN_TYPE, value: "PocGatewaySPIFFE"}
+        - {name: GATEWAY_SPIFFE_MINT_ROLE, value: "mcp-gateway-demo"}
+        - {name: CONFIG_DIR,              value: "/config"}
+        - {name: TOOL_PREFIX,             value: "dbx"}
+      envFrom:
+        - secretRef: {name: gw-databricks-secrets}   <span class="c"># exchange client id/secret, by reference</span>
+  volumes:
+    - name: vault-token
+      projected:
+        sources:
+          - serviceAccountToken:
+              path: token
+              <span class="k">audience: vault</span>          <span class="c"># the default SA token carries the API server's</span>
+              expirationSeconds: 600   <span class="c"># audience; Vault refuses it: "invalid audience (aud) claim"</span></pre></div>
+  <div class="callout danger">
+    <span class="co-title">Demo-only escalation</span>
+    <p>The POC manifests set <code>POLICY_DEBUG_OBO=true</code>, which puts the raw exchanged token (a Vault-accepted credential for its five-minute life) into the audit ring so a demo can decode the signed-in RAR. The code's default is off. Never set it outside a demo.</p>
+  </div>
+  <p>Two deployments of the same image give you tiered identity: the parent (<code>08</code>) and a read-only subagent variant (<code>08b</code>) that differs in three identity-relevant ways: a different SPIFFE mint role (so every released credential is attributed <code>act: reader-subagent</code>), a different Verify exchange application's secret, and a read-only tool config in which write and delete tools simply do not exist (they resolve <code>unknown_tool</code> before any exchange runs; the config ships at <code>gateway/config/databricks-subagent/</code>). It also carries two operational deltas: an optional, commented node anti-affinity example for keeping it off a CPU-pressured worker, and a Service exposing only 8090, with no revoke port.</p>
+  <div class="callout validate">
+    <span class="co-title">Validate before you continue</span>
+    <p>Exercise <code>/authorize</code> directly, one call per enforcement branch, so a failure here is distinguishable from a failure in the Envoy or Authorino plumbing around it. The probe script sets up its own <code>oc port-forward</code> when <code>POLICY_URL</code> is unset, so it runs from a workstation as-is (the in-cluster DNS name does not resolve from your laptop; set <code>POLICY_URL</code> yourself only to override the target):</p>
+    <div class="code"><span class="code-label">bash · RHGW-P7, five branches</span><pre>bash scripts/probe-policy-service.sh
+<span class="g"># PASS evidence, branch by branch:</span>
+<span class="g">#   dbxdatabricks_query   -> decision allow, WITH a real credential (redacted in output)</span>
+<span class="g">#   dbxdatabricks_write   -> deny: Verify refuses the unapproved write</span>
+<span class="g">#   dbxdatabricks_delete  -> deny: refused locally, tier 4, before any external call</span>
+<span class="g">#   dbxnot_a_tool         -> deny: unknown_tool</span>
+<span class="g">#   tools/list (no auth)  -> allow: not_a_tool_call (asserted, because silently</span>
+<span class="g">#                            allowing everything would look identical to a broken policy)</span></pre></div>
+    <p>The tier-3 write branch's shape depends on the subject: a real human subject draws <code>mfa_challenge</code> (approvable, step 12); a <code>client_credentials</code> service subject is refused outright because there is nobody to challenge. Both are correct refusals of an unapproved write; the probe prints which subject it used so you never have to guess.</p>
+  </div>
+</section>
+
+<section class="step" id="step-9">
+  <div class="step-head"><div class="step-num">9</div><h2>Federate MCP servers behind the broker</h2></div>
+  <p class="files">Manifests: <code>deploy/rhgw/07-mcp-federation.yaml</code> · <code>11-mcp-federation-jira-gitlab.yaml</code> · probe: <code>scripts/probe-rhgw-mcp.sh</code></p>
+  <p>Federation is one <code>MCPGatewayExtension</code> per gateway namespace plus an HTTPRoute and an <code>MCPServerRegistration</code> per upstream (the first manifest carries all three for Databricks; the second adds only the per-upstream pairs for Jira and GitLab). The extension is what makes the operator deploy the broker-router and write an EnvoyFilter against your Gateway; you never name a broker image yourself.</p>
+  <p>If you have no real MCP upstreams yet, <code>oc apply -f deploy/rhgw/07b-mock-backends.yaml</code> deploys mock Databricks, Jira, and GitLab servers behind the exact Service names and ports the federation manifests reference. The mocks are minimal JSON-RPC responders: enough for federation discovery and every authorization checkpoint in this guide (the Databricks mock even returns the seeded revenue cell the end-to-end probe string-matches), but they implement no <code>Mcp-Session-Id</code> handling, so the stateful-session requirement in the field note below still applies in full to any real upstream you swap in.</p>
+  <div class="code"><span class="code-label">yaml · 07-mcp-federation.yaml (the pattern)</span><pre>apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: databricks-mcp-route
+  namespace: mcp-gateway-demo
+spec:
+  parentRefs:
+    - name: mcp-gw
+      <span class="k">sectionName: http</span>            <span class="c"># must name the LISTENER; without it the controller</span>
+                                   <span class="c"># finds the route and then silently stops</span>
+  hostnames:
+    - <span class="k">databricks-mcp.gateway.internal</span>   <span class="c"># one DISTINCT hostname per upstream, never the publicHost</span>
+  rules:
+    - matches: [{path: {type: PathPrefix, value: /mcp}}]
+      backendRefs: [{name: databricks-mcp, port: 5113}]
+---
+apiVersion: mcp.kuadrant.io/v1alpha1
+kind: MCPServerRegistration
+metadata:
+  name: databricks-mcp
+  namespace: mcp-gateway-demo
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: databricks-mcp-route
+  path: /mcp
+  prefix: dbx                    <span class="c"># concatenated with NO separator: databricks_query</span>
+                                 <span class="c"># federates as dbxdatabricks_query</span>
+  state: Enabled
+---
+apiVersion: mcp.kuadrant.io/v1alpha1
+kind: MCPGatewayExtension
+metadata:
+  name: mcp-broker
+  namespace: mcp-gateway-demo
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: mcp-gw
+    <span class="k">namespace: mcp-gateway-demo</span>         <span class="c"># the CRD calls this optional; the controller disagrees</span>
+    sectionName: http
+  publicHost: mcp.gateway.internal</pre></div>
+  <div class="callout fieldnote">
+    <span class="co-title">Learned live: four ways this silently half-works</span>
+    <ul>
+      <li><strong>Hostname collision.</strong> If an upstream route's hostname equals the extension's <code>publicHost</code>, the router's rewritten hop matches the broker's own route and every authorized call fails with "tool not found" while <code>tools/list</code> keeps advertising the tools. Distinct hostname per upstream, always.</li>
+      <li><strong>Missing <code>sectionName</code>.</strong> The route attaches to the Gateway generally, the controller logs that it found it, then writes nothing into the broker config and sets no status condition at all.</li>
+      <li><strong>Missing route hostname.</strong> Fine as a plain route, but the registration fails with "must have at least one hostname". The hostname is synthetic; no external DNS is involved.</li>
+      <li><strong>Stateless upstream sessions.</strong> If your thin MCP runs the SDK's stateless Streamable HTTP mode, the broker's long-lived registration stream gets a 404 and its routing table stays empty. Run real sessions (<code>sessionIdGenerator</code>, GET and DELETE handlers).</li>
+    </ul>
+  </div>
+  <div class="callout validate">
+    <span class="co-title">Validate before you continue</span>
+    <p>Run a real MCP session through the gateway (this is exactly what your agent's client will do):</p>
+    <div class="code"><span class="code-label">bash · RHGW-P6</span><pre>GW="http://mcp-gw-istio.mcp-gateway-demo.svc/mcp"
+H="Host: mcp.gateway.internal"; CT="Content-Type: application/json"
+ACC="Accept: application/json, text/event-stream"
+
+curl -sS -D /tmp/h.txt -o /tmp/init.txt -H "$H" -H "$CT" -H "$ACC" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"poc-probe","version":"1"}}}' "$GW"
+SID=$(grep -i '^mcp-session-id:' /tmp/h.txt | tr -d '\r' | awk '{print $2}')
+
+curl -sS -o /dev/null -H "$H" -H "$CT" -H "$ACC" -H "Mcp-Session-Id: $SID" \
+  -d '{"jsonrpc":"2.0","method":"notifications/initialized"}' "$GW"
+curl -sS -H "$H" -H "$CT" -H "$ACC" -H "Mcp-Session-Id: $SID" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/list"}' "$GW" | grep -o '"name":"[^"]*"' | sort -u
+<span class="g"># PASS evidence: an Mcp-Session-Id header arrived, and the list contains your</span>
+<span class="g"># prefixed tools (dbxdatabricks_query, ...) alongside the broker's meta-tools</span></pre></div>
+    <p>Ignore two log lines that look like trouble and are not: the broker logs "tool id is missing" twelve times while conflict-checking its own meta-tools, and the router logs a per-request <code>[ext_proc] error=EOF</code> on successful calls too.</p>
+  </div>
+</section>
+
+<section class="step" id="step-10">
+  <div class="step-head"><div class="step-num">10</div><h2>Authorize the MCP path</h2></div>
+  <p class="files">Manifest: <code>deploy/rhgw/09-mcp-authconfig.yaml</code> · probe: <code>scripts/probe-rhgw-authz.sh</code></p>
+  <p>Now move authorization from the spike's echo path onto the real MCP path. Before the YAML, one empirically learned ordering fact that decides two of its fields, because getting either wrong does not fail loudly: it silently exempts exactly the tool calls from authorization.</p>
+
+  <figure>
+    <div class="fig-frame">
+    <svg viewBox="0 0 1240 430" role="img" aria-label="Inside Envoy, the mcp-router ext_proc filter runs before ext_authz and rewrites the request authority from the public hostname to the upstream hostname. Authorino therefore sees the rewritten request, so the AuthConfig must list upstream hostnames and the AuthorizationPolicy must match paths only.">
+      <defs>
+        <marker id="fo-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+        </marker>
+      </defs>
+      <text x="30" y="40" class="d-label">Inside Envoy, order is everything: the router rewrites before Authorino looks</text>
+
+      <!-- request in -->
+      <rect x="30" y="80" width="270" height="110" rx="10" class="d-card"/>
+      <text x="165" y="108" text-anchor="middle" class="d-sub">request as the agent sent it</text>
+      <text x="165" y="132" text-anchor="middle" class="d-mono">:authority mcp.gateway.internal</text>
+      <text x="165" y="152" text-anchor="middle" class="d-mono">tools/call dbxdatabricks_query</text>
+      <text x="165" y="172" text-anchor="middle" class="d-mono">POST /mcp</text>
+
+      <!-- router -->
+      <rect x="390" y="80" width="280" height="110" rx="10" class="d-card" style="stroke: var(--rh-zone-border); stroke-width: 2;"/>
+      <text x="530" y="108" text-anchor="middle" class="d-label">1 · mcp-router (ext_proc)</text>
+      <text x="530" y="132" text-anchor="middle" class="d-sub">rewrites :authority to the</text>
+      <text x="530" y="152" text-anchor="middle" class="d-sub">upstream route's hostname,</text>
+      <text x="530" y="170" text-anchor="middle" class="d-sub">before any authorization check</text>
+
+      <!-- authorino -->
+      <rect x="760" y="80" width="280" height="110" rx="10" class="d-card" style="stroke: var(--accent); stroke-width: 2;"/>
+      <text x="900" y="108" text-anchor="middle" class="d-label">2 · ext_authz (Authorino)</text>
+      <text x="900" y="132" text-anchor="middle" class="d-sub">sees the REWRITTEN authority:</text>
+      <text x="900" y="154" text-anchor="middle" class="d-mono">:authority databricks-mcp.gateway.internal</text>
+      <text x="900" y="172" text-anchor="middle" class="d-mono">body still names dbxdatabricks_query</text>
+
+      <path d="M 300 135 L 390 135" class="d-conn d-accent flow" marker-end="url(#fo-a)"/>
+      <path d="M 670 135 L 760 135" class="d-conn d-accent flow" marker-end="url(#fo-a)"/>
+      <path d="M 1040 135 L 1130 135" class="d-conn d-accent flow" marker-end="url(#fo-a)"/>
+      <text x="1135" y="128" class="d-sub">upstream</text>
+
+      <g class="anim-dot">
+        <circle r="5" fill="var(--accent)">
+          <animateMotion dur="4s" repeatCount="indefinite" rotate="none" path="M 300 135 L 1130 135"/>
+        </circle>
+      </g>
+
+      <!-- consequences -->
+      <rect x="30" y="240" width="560" height="150" rx="10" fill="var(--ok-fill)" stroke="var(--ok)" stroke-width="1.5"/>
+      <text x="52" y="270" class="d-label" style="fill: var(--ok);">Consequence 1 · AuthConfig hosts</text>
+      <text x="52" y="296" class="d-sub">The AuthConfig must claim BOTH the public and every upstream hostname,</text>
+      <text x="52" y="316" class="d-sub">because Authorino matches on the rewritten authority. A missing upstream</text>
+      <text x="52" y="336" class="d-sub">hostname surfaces as NOT_FOUND "Service not found", reported upstream as</text>
+      <text x="52" y="356" class="d-mono">"server returned 4xx for initialize POST, likely a legacy SSE server"</text>
+
+      <rect x="620" y="240" width="590" height="150" rx="10" fill="var(--deny-fill)" stroke="var(--deny)" stroke-width="1.5"/>
+      <text x="642" y="270" class="d-label" style="fill: var(--deny);">Consequence 2 · AuthorizationPolicy stays paths-only</text>
+      <text x="642" y="296" class="d-sub">A rule pinned to the public hostname silently exempts exactly the rewritten</text>
+      <text x="642" y="316" class="d-sub">tool calls from authorization, while initialize still gets checked, so casual</text>
+      <text x="642" y="336" class="d-sub">testing looks fine. Observed live: a tier-4 delete and a bearerless call</text>
+      <text x="642" y="356" class="d-sub">reached the thin MCP unauthorized. Match on paths (/mcp*), never hosts.</text>
+    </svg>
+    </div>
+    <figcaption>The trap that cost a live debugging session: mcp-router runs before ext_authz and rewrites the authority, so Authorino authorizes the rewritten request. The JSON-RPC body the callout receives still carries the prefixed tool name; the policy service strips the prefix itself (that is what its TOOL_PREFIX setting is for). Both rules on this diagram exist because their violation was observed on a real cluster, not predicted.</figcaption>
+  </figure>
+
+  <p>The manifest creates two objects. First, the AuthorizationPolicy that step 7's manifest created with <code>/echo*</code> only: this file re-declares the same object extended to both paths and owns it from here on (which is why step 7 carries the never-re-apply-06-after-this warning):</p>
+  <div class="code"><span class="code-label">yaml · 09-mcp-authconfig.yaml (object 1)</span><pre>apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: mcp-gw-extauthz
+  namespace: mcp-gateway-demo
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: mcp-gw
+  action: CUSTOM
+  provider:
+    name: authorino
+  rules:
+    - to:
+        - operation:
+            <span class="k">paths: ["/echo*", "/mcp*"]</span>   <span class="c"># paths only, no host clause, see the diagram</span></pre></div>
+  <p>Second, the production AuthConfig. Its shape is the spike's, with three load-bearing differences: the hosts list covers the public and all upstream hostnames, the callout POSTs the caller's bearer and the whole MCP body to the policy service, and the deny response carries the callout's JSON to the caller.</p>
+  <div class="code"><span class="code-label">yaml · 09-mcp-authconfig.yaml (object 2)</span><pre>apiVersion: authorino.kuadrant.io/v1beta3
+kind: AuthConfig
+metadata:
+  name: mcp-tool-authorization
+  namespace: mcp-gateway-demo
+spec:
+  hosts:
+    - mcp.gateway.internal              <span class="c"># the public host (initialize, tools/list)</span>
+    - databricks-mcp.gateway.internal   <span class="c"># every upstream host (rewritten tool calls)</span>
+    - jira-mcp.gateway.internal
+    - gitlab-mcp.gateway.internal
+  authentication:
+    anonymous:
+      anonymous: {}                   <span class="c"># still anonymous, replaced in step 11</span>
+  metadata:
+    policy:
+      http:
+        url: http://policy-service.mcp-gateway-demo.svc:8090/authorize
+        method: POST
+        contentType: application/json
+        bodyParameters:
+          authorization:
+            <span class="k">selector: context.request.http.headers.authorization</span>
+          mcp:
+            expression: 'request.body'          <span class="c"># safe: field access, empty when absent</span>
+          userEmail:
+            <span class="k">selector: context.request.http.headers.x-user-email</span>
+  authorization:
+    allowed:
+      patternMatching:
+        patterns:
+          - selector: auth.metadata.policy.decision
+            operator: eq
+            value: allow
+  response:
+    success:
+      headers:
+        x-db-password: { plain: { selector: auth.metadata.policy.credential } }
+        x-db-username: { plain: { selector: auth.metadata.policy.username } }
+        x-granted-scope: { plain: { selector: auth.metadata.policy.scope } }
+    unauthorized:
+      code: 403
+      message:
+        selector: auth.metadata.policy.reason   <span class="c"># becomes X-Ext-Auth-Reason, never the body</span>
+      <span class="k">body:</span>
+        <span class="k">selector: auth.metadata.policy</span>          <span class="c"># the callout JSON, verbatim, as the 403 body:</span>
+                                                <span class="c"># this is how a step-up txId reaches the caller</span></pre></div>
+  <div class="callout danger">
+    <span class="co-title">Selectors, not CEL, for optional headers</span>
+    <p>In <code>bodyParameters</code>, a CEL map index on an absent header (<code>expression: 'request.headers["x-user-email"]'</code>) throws "no such key", and Authorino treats one failed parameter as failure of the entire metadata evaluator: the callout is never sent, the metadata object goes missing, and every request dies as a 403 with an empty body and a blank reason header. This took the composed path down in the POC for any caller not sending the header, and nothing at default log level pointed at the cause. Selectors (<code>context.request.http.headers.*</code>) resolve missing paths to empty. If you must use CEL, guard it: <code>'"x" in request.headers ? request.headers["x"] : ""'</code>.</p>
+  </div>
+  <div class="callout fieldnote">
+    <span class="co-title">Learned live: single ownership</span>
+    <p>The spike's manifest (step 7) deliberately carries the <code>/echo*</code>-only copy of this AuthorizationPolicy so the seam is provable before the MCP path exists. From this step on, this file owns the object. Re-applying the spike's copy after this one reverts the rule, <code>oc apply</code> says "configured" both times, and the only symptom is that the callout stops being invoked for MCP while every object looks healthy. That exact failure happened live in the build this guide is drawn from: apply 06 before 09, never after.</p>
+  </div>
+  <div class="callout validate">
+    <span class="co-title">Validate before you continue</span>
+    <p>The differential probe: two tool calls in the same session, over the same transport, with the same bearer, differing only in which tool is named. That construction is what makes it evidence.</p>
+    <div class="code"><span class="code-label">bash · RHGW-P8 (session preamble as in step 9, plus AU="Authorization: Bearer $BEARER")</span><pre><span class="c"># tier-4 delete: must be refused AT the gateway, before the broker</span>
+curl -sS -o /tmp/d.txt -w 'HTTP %{http_code}\n' -H "$H" -H "$CT" -H "$ACC" -H "$AU" -H "Mcp-Session-Id: $SID" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"dbxdatabricks_delete","arguments":{"table":"revenue","writtenBy":"probe"}}}' "$GW"
+<span class="c"># tier-1 read: must be authorized and reach the broker</span>
+curl -sS -o /tmp/q.txt -w 'HTTP %{http_code}\n' -H "$H" -H "$CT" -H "$ACC" -H "$AU" -H "Mcp-Session-Id: $SID" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"dbxdatabricks_query","arguments":{"table":"revenue"}}}' "$GW"
+
+<span class="c"># the decision-side evidence: the policy service's own outcome lines</span>
+oc logs -n mcp-gateway-demo deploy/policy-service --tail=6 | grep '"outcome"' | tail -2
+<span class="g"># PASS evidence: HTTP 403 on the delete, success on the query, and two matching</span>
+<span class="g"># outcome lines (policy_deny, then allow) in the policy-service log</span></pre></div>
+    <p>Mind one shell mechanic if you script this inside a pod: <code>export</code> reaches your subshell, but the probe container only sees what its pod manifest declares. Pass the bearer via the pod's env, never argv, so it also stays out of captures.</p>
+  </div>
+</section>
+
+<section class="step" id="step-11">
+  <div class="step-head"><div class="step-num">11</div><h2>Switch identity from anonymous to JWT</h2></div>
+  <p class="files">Manifest: <code>deploy/rhgw/10-mcp-authconfig-jwt.yaml</code> · probe: <code>scripts/probe-rhgw-jwt.sh</code></p>
+  <p>Anonymous authentication was scaffolding that kept failure classes separable while you proved the callout. Production shape puts Authorino's <code>jwt</code> evaluator in front, verifying the caller's bearer against the Verify issuer before the callout ever runs. The full AuthConfig pipeline now looks like this:</p>
+
+  <figure>
+    <div class="fig-frame">
+    <svg viewBox="0 0 1240 360" role="img" aria-label="The four AuthConfig stages run in order: authentication validates the JWT, metadata calls the policy service, authorization gates on the returned decision, and the response stage either injects credential headers on success or returns a 403 carrying the callout JSON on deny. A bad token exits with 401 before the callout; a deny exits with 403 after it.">
+      <defs>
+        <marker id="pl-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+        </marker>
+        <marker id="pl-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--deny)"/>
+        </marker>
+        <marker id="pl-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/>
+        </marker>
+      </defs>
+      <text x="30" y="38" class="d-label">One AuthConfig, four stages, two exits</text>
+
+      <rect x="30" y="70" width="250" height="100" rx="10" class="d-card"/>
+      <text x="155" y="98" text-anchor="middle" class="d-label">authentication</text>
+      <text x="155" y="120" text-anchor="middle" class="d-mono">jwt · issuerUrl = Verify</text>
+      <text x="155" y="138" text-anchor="middle" class="d-sub">who is calling?</text>
+
+      <rect x="340" y="70" width="250" height="100" rx="10" class="d-card" style="stroke: var(--accent); stroke-width: 2;"/>
+      <text x="465" y="98" text-anchor="middle" class="d-label">metadata</text>
+      <text x="465" y="120" text-anchor="middle" class="d-mono">POST /authorize (callout)</text>
+      <text x="465" y="138" text-anchor="middle" class="d-sub">exchange · RAR · mint</text>
+
+      <rect x="650" y="70" width="250" height="100" rx="10" class="d-card"/>
+      <text x="775" y="98" text-anchor="middle" class="d-label">authorization</text>
+      <text x="775" y="120" text-anchor="middle" class="d-mono">decision == allow</text>
+      <text x="775" y="138" text-anchor="middle" class="d-sub">gate on the verdict</text>
+
+      <rect x="960" y="70" width="250" height="100" rx="10" class="d-card"/>
+      <text x="1085" y="98" text-anchor="middle" class="d-label">response</text>
+      <text x="1085" y="120" text-anchor="middle" class="d-mono">inject x-db-* upstream</text>
+      <text x="1085" y="138" text-anchor="middle" class="d-sub">the agent never holds it</text>
+
+      <path d="M 280 120 L 340 120" class="d-conn d-accent flow" marker-end="url(#pl-a)"/>
+      <path d="M 590 120 L 650 120" class="d-conn d-accent flow" marker-end="url(#pl-a)"/>
+      <path d="M 900 120 L 960 120" class="d-conn d-ok flow" marker-end="url(#pl-g)"/>
+
+      <!-- 401 exit -->
+      <path d="M 155 170 L 155 250" class="d-conn d-deny" marker-end="url(#pl-r)" stroke-dasharray="4 5"/>
+      <rect x="40" y="250" width="300" height="76" rx="8" fill="var(--deny-fill)" stroke="var(--deny)" stroke-width="1.5"/>
+      <text x="58" y="276" class="d-mono-deny">401 · WWW-Authenticate: Bearer</text>
+      <text x="58" y="294" class="d-mono-deny">realm="verify-jwt"</text>
+      <text x="58" y="314" class="d-sub">bad token: ZERO callout invocations</text>
+
+      <!-- 403 exit -->
+      <path d="M 775 170 L 775 250" class="d-conn d-deny" marker-end="url(#pl-r)" stroke-dasharray="4 5"/>
+      <rect x="620" y="250" width="360" height="76" rx="8" fill="var(--deny-fill)" stroke="var(--deny)" stroke-width="1.5"/>
+      <text x="638" y="276" class="d-mono-deny">403 · body = the callout JSON, verbatim</text>
+      <text x="638" y="296" class="d-sub">the reason, and on a step-up the txId and</text>
+      <text x="638" y="314" class="d-sub">masked email destination reach the caller</text>
+
+      <g class="anim-dot">
+        <circle r="5" fill="var(--accent)">
+          <animateMotion dur="3.2s" repeatCount="indefinite" rotate="none" path="M 30 120 L 960 120"/>
+        </circle>
+      </g>
+    </svg>
+    </div>
+    <figcaption>The production pipeline. The two deny exits are deliberately different: a 401 means the token never checked out and the policy service was never consulted; a 403 means the policy service decided, and its full JSON explains why. This separation is what makes failures attributable.</figcaption>
+  </figure>
+
+  <p>The JWT variant defines the same AuthConfig object name as step 10's manifest, so exactly one is live at a time and applying either file is a complete switch. The only functional difference is the authentication stage:</p>
+  <div class="code"><span class="code-label">yaml · 10-mcp-authconfig-jwt.yaml (the difference)</span><pre>  authentication:
+    verify-jwt:
+      jwt:
+        issuerUrl: https://your-tenant.verify.ibm.com/oidc/endpoint/default
+        <span class="c"># JWKS discovered via OIDC discovery from the issuer</span></pre></div>
+  <div class="callout validate">
+    <span class="co-title">Validate before you continue</span>
+    <div class="code"><span class="code-label">bash · RHGW-P10</span><pre>oc apply -f deploy/rhgw/10-mcp-authconfig-jwt.yaml
+oc get authconfig mcp-tool-authorization -n mcp-gateway-demo \
+  -o jsonpath='ready={.status.summary.ready}{"\n"}'          <span class="c"># ready=true</span>
+
+<span class="c"># leg 1: valid bearer -> initialize + query must return real rows</span>
+
+PSB=$(oc logs -n mcp-gateway-demo deploy/policy-service | wc -l)     <span class="c"># snapshot AFTER the valid leg,</span>
+                                                              <span class="c"># bracketing only the bad legs</span>
+<span class="c"># leg 2: garbage bearer -> must die at Authorino</span>
+curl -sS -o /dev/null -D - -H "$H" -H "$CT" -H "$ACC" \
+  -H "Authorization: Bearer garbage.token.value" -d "$INIT" "$GW" \
+  | grep -iE '^HTTP|^www-authenticate'
+<span class="g"># PASS evidence: HTTP 401 and WWW-Authenticate: Bearer realm="verify-jwt"</span>
+<span class="c"># leg 3: no bearer at all -> same 401</span>
+
+PSA=$(oc logs -n mcp-gateway-demo deploy/policy-service | wc -l)
+echo "before=$PSB after=$PSA"
+<span class="g"># PASS evidence: PSB == PSA across the two bad legs. The rejected tokens produced</span>
+<span class="g"># ZERO callout invocations: the 401 was the jwt evaluator's doing, provably.</span></pre></div>
+    <p>Note the bracketing: the scripted probe snapshots before all three legs and eyeballs whether the delta is attributable to the valid leg alone; snapshotting between the valid and bad legs, as above, turns that judgment into an equality check.</p>
+    <p>The probe closes with a control worth copying: revert to the anonymous variant, prove a bearerless initialize now returns 200 (so the 401 really was the evaluator), then re-apply the JWT variant so the production shape is what stays live. One warning from the recorded run: the scripted revert leg curls the Service's ClusterIP from the workstation, which cannot reach it, and the capture was marked invalid (HTTP 000). Run that control in-cluster, like every other data-path check here. And if you kill the script mid-way, check which AuthConfig variant is live before walking away.</p>
+  </div>
+</section>
+
+<section class="step" id="step-12">
+  <div class="step-head"><div class="step-num">12</div><h2>Step-up approval over a synchronous callout</h2></div>
+  <p class="files">Source: <code>policy-service/src/server.js</code> (park, complete, redeem) · probe: <code>scripts/probe-hitl-callout.sh</code></p>
+  <p>A tier-3 write needs a human to approve a real emailed one-time code. The structural problem: an ext_authz callout answers synchronously and cannot hold a connection open across a human's round trip to their inbox. The answer is park-and-retry: the step-up parks approval state in the policy service, the deny carries a transaction id to the caller, and the agent's retry of the identical call redeems the approval.</p>
+
+  <figure>
+    <div class="fig-frame">
+    <svg viewBox="0 0 1240 600" role="img" aria-label="Sequence of the step-up: the write call is denied with a transaction id while an OTP email is sent; the human completes the challenge at the hitl complete endpoint; the policy service runs a second exchange and caches the elevated grant; the agent's retry of the identical call redeems it, and Vault mints the credential.">
+      <defs>
+        <marker id="sq-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+        </marker>
+        <marker id="sq-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--deny)"/>
+        </marker>
+        <marker id="sq-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/>
+        </marker>
+        <marker id="sq-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--diagram-line)"/>
+        </marker>
+      </defs>
+
+      <!-- lifelines -->
+      <g>
+        <text x="90" y="40" text-anchor="middle" class="d-label">Agent</text>
+        <text x="330" y="40" text-anchor="middle" class="d-label">Gateway</text>
+        <text x="330" y="58" text-anchor="middle" class="d-sub">Envoy + Authorino</text>
+        <text x="590" y="40" text-anchor="middle" class="d-label">policy-service</text>
+        <text x="850" y="40" text-anchor="middle" class="d-label">IBM Verify</text>
+        <text x="1040" y="40" text-anchor="middle" class="d-label">Human</text>
+        <text x="1180" y="40" text-anchor="middle" class="d-label">Vault</text>
+        <line x1="90" y1="70" x2="90" y2="570" stroke="var(--border-strong)" stroke-width="1.5"/>
+        <line x1="330" y1="70" x2="330" y2="570" stroke="var(--border-strong)" stroke-width="1.5"/>
+        <line x1="590" y1="70" x2="590" y2="570" stroke="var(--border-strong)" stroke-width="1.5"/>
+        <line x1="850" y1="70" x2="850" y2="570" stroke="var(--border-strong)" stroke-width="1.5"/>
+        <line x1="1040" y1="70" x2="1040" y2="570" stroke="var(--border-strong)" stroke-width="1.5"/>
+        <line x1="1180" y1="70" x2="1180" y2="570" stroke="var(--border-strong)" stroke-width="1.5"/>
+      </g>
+
+      <!-- 1 write call -->
+      <path d="M 90 100 L 330 100" class="d-conn d-accent flow" marker-end="url(#sq-a)"/>
+      <text x="210" y="92" text-anchor="middle" class="d-mono">1 · tools/call databricks_write</text>
+      <path d="M 330 130 L 590 130" class="d-conn d-accent flow" marker-end="url(#sq-a)"/>
+      <text x="460" y="122" text-anchor="middle" class="d-mono">2 · callout /authorize</text>
+
+      <!-- 3 exchange -->
+      <path d="M 590 160 L 850 160" class="d-conn flow" marker-end="url(#sq-n)"/>
+      <text x="720" y="152" text-anchor="middle" class="d-mono">3 · RFC 8693 exchange + RAR</text>
+      <path d="M 850 190 L 590 190" class="d-conn d-deny" marker-end="url(#sq-r)" stroke-dasharray="4 5"/>
+      <text x="720" y="182" text-anchor="middle" class="d-mono-deny">4 · scope: mfa_challenge</text>
+
+      <!-- 5 park + email -->
+      <rect x="470" y="212" width="240" height="42" rx="7" fill="var(--surface-alt)" stroke="var(--accent)" stroke-width="1.2"/>
+      <text x="590" y="230" text-anchor="middle" class="d-mono">5 · park {txId, RAR, owner sub,</text>
+      <text x="590" y="246" text-anchor="middle" class="d-mono">argsHash} · TTL 5 min</text>
+      <path d="M 590 270 C 750 270 900 262 1032 262" class="d-conn flow" marker-end="url(#sq-n)"/>
+      <text x="820" y="256" text-anchor="middle" class="d-mono">6 · transient email OTP</text>
+
+      <!-- 7 deny back -->
+      <path d="M 590 300 L 338 300" class="d-conn d-deny" marker-end="url(#sq-r)" stroke-dasharray="4 5"/>
+      <path d="M 330 330 L 98 330" class="d-conn d-deny" marker-end="url(#sq-r)" stroke-dasharray="4 5"/>
+      <text x="330" y="292" text-anchor="middle" class="d-mono-deny">7 · deny: step_up_required</text>
+      <text x="214" y="322" text-anchor="middle" class="d-mono-deny">403 body carries {txId, maskedDestination}</text>
+
+      <!-- 8 human completes -->
+      <path d="M 1040 380 C 900 380 740 372 598 372" class="d-conn d-accent flow" marker-end="url(#sq-a)"/>
+      <text x="820" y="364" text-anchor="middle" class="d-mono">8 · POST /hitl/complete {txId, otp} + bearer</text>
+      <text x="820" y="396" text-anchor="middle" class="d-sub">identity-bound: caller's sub must equal the parked owner's</text>
+
+      <!-- 9 leg 2 -->
+      <path d="M 590 424 L 850 424" class="d-conn flow" marker-end="url(#sq-n)"/>
+      <text x="720" y="416" text-anchor="middle" class="d-mono">9 · leg-2 jwt-bearer exchange, RAR re-sent</text>
+      <rect x="470" y="444" width="240" height="40" rx="7" fill="var(--ok-fill)" stroke="var(--ok)" stroke-width="1.2"/>
+      <text x="590" y="462" text-anchor="middle" class="d-mono-ok">10 · elevated grant cached 60s</text>
+      <text x="590" y="478" text-anchor="middle" class="d-mono-ok">key: sub | tool | argsHash</text>
+
+      <!-- 11 retry -->
+      <path d="M 90 512 L 330 512" class="d-conn d-accent flow" marker-end="url(#sq-a)"/>
+      <text x="210" y="504" text-anchor="middle" class="d-mono">11 · retry the IDENTICAL call</text>
+      <path d="M 590 542 L 1172 542" class="d-conn d-ok flow" marker-end="url(#sq-g)"/>
+      <text x="880" y="534" text-anchor="middle" class="d-mono-ok">12 · redeem + mint · allow, elevated: true · lease TTL 300s</text>
+
+      <g class="anim-dot">
+        <circle r="4.5" fill="var(--accent)">
+          <animateMotion dur="2.4s" repeatCount="indefinite" rotate="none" path="M 90 100 L 330 100"/>
+        </circle>
+      </g>
+      <g class="anim-dot">
+        <circle r="4.5" fill="var(--accent)">
+          <animateMotion dur="2.8s" begin="-1s" repeatCount="indefinite" rotate="none" path="M 1040 380 C 900 380 740 372 598 372"/>
+        </circle>
+      </g>
+      <g class="anim-dot">
+        <circle r="4.5" fill="var(--ok)">
+          <animateMotion dur="3s" begin="-0.4s" repeatCount="indefinite" rotate="none" path="M 590 542 L 1172 542"/>
+        </circle>
+      </g>
+    </svg>
+    </div>
+    <figcaption>Park-and-retry. The connection never waits: call one is denied carrying the transaction id, the approval state waits in the policy service, and the identical retry redeems it. Compare the REST-gateway variant of this architecture, which parks the connection instead; only where the waiting happens differs.</figcaption>
+  </figure>
+
+  <p>Implementation facts that carry the security properties, all enforced in <code>policy-service/src/server.js</code>:</p>
+  <ul>
+    <li><strong>The park is owner-bound.</strong> <code>/hitl/complete</code> resolves the caller's <code>sub</code> via Verify userinfo and refuses completion unless it equals the parked owner's. A wrong code re-parks under the same transaction (<code>otp_invalid</code>); an expired code is <code>otp_expired</code>; an unknown transaction id is refused.</li>
+    <li><strong>Leg 2 must re-send the RAR.</strong> Verify does not propagate <code>authorization_details</code> across exchange legs, so the parked context stores them and the jwt-bearer exchange sends them again. Forget this and the elevated token authorizes nothing.</li>
+    <li><strong>The email destination comes from the request context</strong> (the <code>x-user-email</code> body parameter first, then the userinfo email claim). This is exactly the optional header from step 10's CEL warning: the absence-safe selector is what keeps email-less callers deniable rather than crashing the callout.</li>
+    <li><strong>The redeem window is tight.</strong> The park lives five minutes, the elevated approval 60 seconds, keyed <code>sub | tool | argsHash</code>: only the same person retrying the same tool with the same arguments redeems it.</li>
+  </ul>
+  <div class="callout validate">
+    <span class="co-title">Validate before you continue</span>
+    <p>Unattended, prove the guards (a service subject cannot draw an <code>mfa_challenge</code>, so the positive leg needs a real signed-in human):</p>
+    <div class="code"><span class="code-label">bash · HITL-P3 negatives</span><pre>bash scripts/probe-hitl-callout.sh
+<span class="g"># PASS evidence, each guard its own refusal:</span>
+<span class="g">#   /hitl/complete with no txId        -> refused</span>
+<span class="g">#   /hitl/complete with no bearer      -> refused</span>
+<span class="g">#   /hitl/complete with no otp         -> refused</span>
+<span class="g">#   /hitl/complete with unknown txId   -> refused (unknown_or_expired_tx)</span>
+<span class="g"># plus four /authorize branches unregressed: allow / deny / deny / meta-tool allow</span></pre></div>
+    <p>The positive leg was proven live in the POC with a fresh human sign-in: <code>mfa_challenge</code> parked, a genuine emailed code entered (the first attempt outlived the five-minute park, usefully proving <code>unknown_or_expired_tx</code> fires), and the retry redeemed <code>decision: allow, elevated: true, tier: 3</code> against a real Vault lease. When you re-prove it on your cluster, that response line and its lease id are the evidence to capture.</p>
+  </div>
+</section>
+
+<section class="step" id="step-13">
+  <div class="step-head"><div class="step-num">13</div><h2>Restore post-use revoke, on a separate listener</h2></div>
+  <p class="files">Manifest: <code>deploy/rhgw/08-policy-service.yaml</code> (Service ports) · tests: <code>tests/check_lease_revoke.sh</code></p>
+  <p>A 300-second lease is short, but revoke-after-use is shorter. The composed path initially accepted TTL-only expiry as a trade-off; it was corrected by adding a revoke-only listener on a second policy-service port (8092) that serves exactly <code>POST /lease/revoke</code> and <code>/healthz</code>. The agent runtime drives a revoke through it after each proxied call returns.</p>
+  <p>Why a second port instead of opening the main one: <code>/authorize</code> returns minted credentials to its caller, and per the callout design it trusts network reachability as its authentication. Opening 8090 to the sandboxed agent would hand a prompt-injected agent the credential channel. The sandbox's NetworkPolicy therefore opens only 8092, and the revoke handler is safe by construction:</p>
+  <ul>
+    <li>The bearer is validated via userinfo, and the lookup key is the token's own <code>sub</code> claim: a caller can only ever reach its own user's mints.</li>
+    <li>The lease id is never accepted from the caller (an arbitrary-id revoke endpoint is a denial-of-service primitive). The service looks up its own recorded mint.</li>
+    <li>Each record is single-use, and the revoke runs against Vault with the recorded exchange token, whose RAR carries the <code>sys/leases/revoke</code> grant.</li>
+    <li>Vault refusal is reported honestly (<code>revoked: false</code>, 502), never masked as success.</li>
+  </ul>
+  <div class="callout validate">
+    <span class="co-title">Validate before you continue</span>
+    <div class="code"><span class="code-label">bash</span><pre>bash tests/check_lease_revoke.sh
+<span class="g"># PASS evidence: 6/6, including the negatives: forged bearer refused,</span>
+<span class="g"># wrong-arguments lookup misses, and a replay of a spent record refused</span></pre></div>
+    <p>Also verify the reachability split itself, both directions: the agent pod connects to 8092 and fails at the connection level (not with an HTTP 403) to 8090.</p>
+  </div>
+</section>
+
+<!-- ==================== PART 4 ==================== -->
+<div class="part-head" id="part-4">
+  <p class="part-label">Part 4</p>
+  <h2>Prove the whole path</h2>
+  <p>Each step validated its own layer. Now assert the composed thesis in one session, the way the POC's checkpoint probe does, and hold the result to the same standard: string-matched evidence, with negatives in the same session as the positive.</p>
+</div>
+
+<section class="step" id="e2e">
+  <div class="step-head"><div class="step-num">✓</div><h2>End-to-end: real rows, and two refusals beside them</h2></div>
+  <p class="files">Probe: <code>scripts/probe-rhgw-e2e.sh</code> (RHGW-P9)</p>
+  <p>The full path under test: caller with a valid bearer, through Envoy, through the router's rewrite, through Authorino's JWT check and callout, one RFC 8693 exchange carrying the dual-shape RAR, the exchanged token presented to Vault, a real ephemeral credential released and injected, the broker's session routing, the thin MCP, and a live backend answering with data you seeded on purpose.</p>
+  <div class="code"><span class="code-label">bash · the three assertions, one session</span><pre><span class="c"># positive: the read returns REAL rows, string-matched on a seeded cell,</span>
+<span class="c"># never inferred from HTTP 200</span>
+grep -q '1418000.00' /tmp/q.txt \
+  &amp;&amp; echo "REAL ROWS RETURNED: seeded cell present in the tool result"
+
+<span class="c"># negative 1: tier-4 delete in the same session -> HTTP 403 (policy_deny)</span>
+<span class="c"># negative 2: the SAME read with the Authorization header omitted. With the</span>
+<span class="c"># step-11 JWT variant live (the state this guide leaves the cluster in), this</span>
+<span class="c"># dies 401 at Authorino, realm verify-jwt, adding ZERO policy-service lines.</span>
+<span class="c"># The POC's recorded RHGW-P9 shows 403 for this leg because that capture ran</span>
+<span class="c"># under the anonymous variant, before the JWT switch.</span>
+
+<span class="c"># decision-side evidence: the last policy-service outcome lines must show</span>
+<span class="c"># the policy_deny AND the allow, and the allow must carry a lease id</span>
+oc logs -n mcp-gateway-demo deploy/policy-service --tail=12 \
+  | grep '"outcome"' | grep -v not_a_tool_call | tail -4</pre></div>
+  <p>When this passed on the POC cluster (2026-08-10, 04:04 UTC), the captured allow line carried Vault lease ttl 300 alongside the seeded revenue cell in the tool result, with the tier-4 delete and the bearer-stripped read both refused in the same session. That is the shape of done. If your equivalent run cannot show all three at once, one of the layers above is quietly out of position, and the troubleshooting table below is ordered by how misleading each failure looks.</p>
+  <div class="callout note">
+    <span class="co-title">The habits that made this debuggable</span>
+    <ul>
+      <li><strong>A verdict is a claim; the capture is the evidence.</strong> The POC's recorder happily writes PASS over an empty capture if the author says so. Whatever harness you build, read the output, not the label.</li>
+      <li><strong>A model's narration is not evidence either.</strong> The origin demo caught a sandboxed agent fluently describing commands it never ran. Only a real tool-call and result pair, read from raw logs, proves execution. The same skepticism applies to your own probes.</li>
+      <li><strong>Prove reverts.</strong> Three checkpoints in this guide mutate live objects and restore them. The restore is a claim too: re-run the positive leg after it.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="troubleshooting">
+  <h2 style="margin-top:64px">Troubleshooting</h2>
+  <p>Ordered roughly by how misleading the symptom is. The first entry took the composed path down in the POC while every object involved looked healthy.</p>
+  <div class="tbl-scroll">
+  <table>
+    <thead><tr><th>Symptom</th><th>Actual cause</th><th>Fix</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Every request dies 403 with an <em>empty body</em> and blank <code>X-Ext-Auth-Reason</code>; policy-service logs nothing</td>
+        <td>A CEL map index on an absent header in <code>bodyParameters</code> threw and killed the whole metadata callout. Only visible at Authorino debug log level: <code>cannot fetch metadata ... no such key</code></td>
+        <td>Use absence-safe selectors (<code>context.request.http.headers.*</code>) for optional headers. Set <code>spec.logLevel: debug</code> on the Authorino CR to confirm; go there first for any empty-bodied 403</td>
+      </tr>
+      <tr>
+        <td>Every authorized tool call answers "tool 'X' not found" while <code>tools/list</code> still advertises X</td>
+        <td>Upstream HTTPRoute hostname collides with the extension's <code>publicHost</code>, so the rewritten hop matched the broker's own route</td>
+        <td>A distinct hostname per upstream (this is the pattern in Red Hat's own samples)</td>
+      </tr>
+      <tr>
+        <td>"tool not found" plus broker log <code>session terminated (404)</code> at registration</td>
+        <td>The upstream MCP server runs stateless Streamable HTTP; the broker's registration stream cannot connect, so its routing table is empty while discovery still lists tools</td>
+        <td>Real sessions in the upstream server: <code>sessionIdGenerator</code>, plus GET and DELETE <code>/mcp</code> handlers</td>
+      </tr>
+      <tr>
+        <td>Tool calls reach the thin MCP <em>without</em> authorization while <code>initialize</code> is still checked</td>
+        <td>The AuthorizationPolicy is scoped to the public hostname; the router rewrote <code>:authority</code> before ext_authz, exempting exactly the tool calls</td>
+        <td>Paths-only rules (<code>/mcp*</code>), never a host clause</td>
+      </tr>
+      <tr>
+        <td>Every call errors "server returned 4xx for initialize POST, likely a legacy SSE server"</td>
+        <td>Authorino answered <code>NOT_FOUND: Service not found</code>: the AuthConfig's hosts list is missing the rewritten upstream hostname</td>
+        <td>List the public host and every upstream host in <code>spec.hosts</code></td>
+      </tr>
+      <tr>
+        <td>The callout silently stops being invoked for MCP; every object reports healthy</td>
+        <td>An older manifest re-applied its stale copy of a shared object (the spike's AuthorizationPolicy, or <code>02-istio-cr.yaml</code> over the ext_authz provider)</td>
+        <td>One file owns each object. Delete superseded definitions from old files</td>
+      </tr>
+      <tr>
+        <td>A second AuthConfig reports "No hosts linked to the resource"</td>
+        <td>Another AuthConfig claimed <code>hosts: ["*"]</code> and took every hostname on the gateway</td>
+        <td>Narrow every AuthConfig to the hosts it owns</td>
+      </tr>
+      <tr>
+        <td>Operator dependencies fail: <code>OwnNamespace InstallModeType not supported</code></td>
+        <td>The OperatorGroup was created with <code>targetNamespaces</code> set</td>
+        <td>Patch the field away (step 3); the dependencies need AllNamespaces</td>
+      </tr>
+      <tr>
+        <td>Every Vault mint refused with <code>RAR_NO_MATCH</code> on an exact-looking match</td>
+        <td>Vault Enterprise build generations read different <code>vault:path_access</code> field names (<code>path_constraint</code>/<code>action</code> vs <code>path</code>/<code>capabilities</code>)</td>
+        <td>Emit both shapes in every leg, as the policy service does</td>
+      </tr>
+      <tr>
+        <td>istiod Pending, <code>Insufficient cpu</code></td>
+        <td>Default istiod requests (500m/2Gi) do not fit the cluster's remaining allocatable CPU</td>
+        <td>Lower pilot requests in the Istio CR. When judging headroom, read <code>oc describe node</code> Allocated resources (requests), not <code>top</code>: in the POC's Kata scheduling incident, usage read 33% while requests sat at 92-98%</td>
+      </tr>
+      <tr>
+        <td>Gateway stuck <code>Programmed: False</code>, "address pending for hostname"</td>
+        <td>No external load balancer exists to assign an address</td>
+        <td>Expected. Use the in-cluster Service; do not chase the condition</td>
+      </tr>
+      <tr>
+        <td>Broker log noise: <code>tool id is missing</code> twelve times; router log <code>[ext_proc] error=EOF</code> per request</td>
+        <td>Both benign: the broker conflict-checks its own meta-tools, and the EOF fires on successful calls too</td>
+        <td>Ignore them; neither is your routing bug</td>
+      </tr>
+      <tr>
+        <td>Deleting "the gateway pod" by label kills the wrong deployment</td>
+        <td>In the POC, <code>app=mcp-gateway</code> was carried by the reference REST gateway; the broker pod uses <code>app.kubernetes.io/name=mcp-gateway</code></td>
+        <td>Delete pods by name after checking labels, and scope any process kill to the exact workload</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="appendix">
+  <h2 style="margin-top:64px">Endpoints, ports, and sources</h2>
+  <div class="tbl-scroll">
+  <table>
+    <thead><tr><th>Surface</th><th>Address</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>MCP data path</td><td><code>http://mcp-gw-istio.mcp-gateway-demo.svc/mcp</code> with <code>Host: mcp.gateway.internal</code></td><td>What agents and probes call</td></tr>
+      <tr><td>Spike echo path</td><td><code>http://mcp-gw-istio.mcp-gateway-demo.svc/echo</code></td><td>Callout-seam proof only; scale the spike to zero afterward</td></tr>
+      <tr><td>Policy decisions</td><td><code>policy-service.mcp-gateway-demo.svc:8090</code> <code>/authorize</code>, <code>/hitl/complete</code>, <code>/me/audit</code></td><td>Never reachable from the sandboxed agent</td></tr>
+      <tr><td>Revoke-only listener</td><td><code>policy-service.mcp-gateway-demo.svc:8092</code> <code>/lease/revoke</code></td><td>The one policy-service port the agent's NetworkPolicy opens</td></tr>
+      <tr><td>Authorino ext_authz</td><td><code>authorino-authorino-authorization.mcp-gateway-demo.svc:50051</code> (gRPC)</td><td>Referenced by the mesh extension provider</td></tr>
+      <tr><td>Vault</td><td><code>http://vault.vault.svc:8200</code></td><td>Kubernetes auth + SPIFFE mint + verify-rar</td></tr>
+      <tr><td>Verify token endpoint</td><td><code>${VERIFY_TENANT_URL}/v1.0/endpoint/default/token</code></td><td>RFC 8693 exchange; OIDC issuer at <code>/oidc/endpoint/default</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="src-note">Built and verified against a working implementation: manifests <code>deploy/rhgw/00-istio.yaml</code> through <code>11-mcp-federation-jira-gitlab.yaml</code>, <code>policy-service/src/server.js</code>, probes <code>scripts/probe-rhgw*.sh</code>, <code>probe-hitl-callout.sh</code>, <code>probe-policy-service.sh</code>, and internal docs covering the enforcement contract, the gateway evaluation, the composition status, the Authorino reference, the architecture, the decision log (D2, D9, D10, D11), and the runbook. Product versions as proven: OpenShift 4.19.38, mcp-gateway.v0.7.1 (Tech Preview, Kuadrant, Red Hat Operators catalog), AuthConfig v1beta3, Vault Enterprise 2.0.4, MCP protocol 2025-06-18. Written 2026-08-16.</p>
+</section>
+
+</main>
+</div>
+</body>
+</html>

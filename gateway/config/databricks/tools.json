@@ -1,0 +1,7 @@
+{
+  "databricks_query":  { "tier": 1, "rarAction": "databricks_read",   "scope": "databricks:read",  "args": { "table": "string" } },
+  "databricks_write":  { "tier": 3, "rarAction": "databricks_write",  "scope": "databricks:write", "args": { "table": "string", "note": "string" } },
+  "databricks_delete": { "tier": 4, "rarAction": "databricks_delete", "scope": "databricks:write", "args": { "table": "string", "writtenBy": "string" } },
+  "jira_get_ticket":   { "tier": 1, "rarAction": "jira_read",     "scope": "jira:read",   "args": { "issueKey": "string" } },
+  "gitlab_get_file":   { "tier": 1, "rarAction": "gitlab_read",   "scope": "gitlab:read", "args": { "project": "string", "filePath": "string" } }
+}

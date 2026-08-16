@@ -1,0 +1,83 @@
+# The enforcement profile as an Authorino callout: what IBM contributes to
+# the Red Hat topology. Their gateway federates and curates; this decides
+# whether a specific call is permitted and releases the credential for it.
+#
+# It runs as the mcp-gateway ServiceAccount because that identity already
+# holds exactly the Vault authority this needs and no more: mint an SVID,
+# release from verify-rar/creds/*, revoke a lease. It cannot read arbitrary
+# secrets and it is not a Vault admin.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: policy-service
+  namespace: mcp-gateway-demo
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: policy-service}}
+  template:
+    metadata:
+      labels: {app: policy-service}
+    spec:
+      serviceAccountName: mcp-gateway
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: policy
+          image: image-registry.openshift-image-registry.svc:5000/mcp-gateway-demo/policy-service@sha256:4fb44471aeb585eea220d84058e19e46a64551bd00e462bbd8a4ccb28b165f6c
+          ports: [{containerPort: 8090}]
+          env:
+            - {name: PORT, value: "8090"}
+            # DEMO ONLY: surface the per-call OBO (a ~5-min Vault-accepted
+            # credential) to the signed-in operator so the RFC 9396 RAR can be
+            # shown decoded in the JWT viewer. NEVER set true outside a demo.
+            - {name: POLICY_DEBUG_OBO, value: "true"}
+            - {name: VAULT_ADDR, value: "http://vault.vault.svc:8200"}
+            - {name: VAULT_ROLE, value: "mcp-gateway"}
+            - {name: VERIFY_TENANT_URL, value: "https://your-tenant.verify.ibm.com"}
+            - {name: GATEWAY_ACTOR_TOKEN_TYPE, value: "PocGatewaySPIFFE"}
+            - {name: GATEWAY_SPIFFE_MINT_ROLE, value: "mcp-gateway-demo"}
+            - {name: CONFIG_DIR, value: /config}
+            # The broker concatenates the registration prefix with no
+            # separator, so databricks_query federates as dbxdatabricks_query.
+            - {name: TOOL_PREFIX, value: "dbx"}
+          envFrom:
+            # Reuses the gateway's exchange client id and secret. Same Verify
+            # application, same actor token type: this is the same
+            # enforcement profile in a different host, not a second identity.
+            - secretRef: {name: gw-databricks-secrets}
+          volumeMounts:
+            - {name: config, mountPath: /config, readOnly: true}
+            - name: vault-token
+              mountPath: /var/run/secrets/vault-token
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+      volumes:
+        - name: config
+          configMap: {name: gw-databricks-config}
+        # Audience-bound, exactly as the agent pod does it. The default
+        # ServiceAccount token carries the API server's audience and Vault
+        # refuses it with "invalid audience (aud) claim".
+        - name: vault-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  audience: vault
+                  expirationSeconds: 600
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: policy-service
+  namespace: mcp-gateway-demo
+spec:
+  selector: {app: policy-service}
+  ports:
+    - {name: authorize, port: 8090, targetPort: 8090}
+    # The revoke-only listener: the ONE policy-service port the sandboxed
+    # agent's NetworkPolicy opens (see deploy/base/netpol.yaml). Serves only
+    # POST /lease/revoke + /healthz; never /authorize.
+    - {name: revoke, port: 8092, targetPort: 8092}

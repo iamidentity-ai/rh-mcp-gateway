@@ -1,0 +1,83 @@
+# This file creates two objects for the spike proof: the AuthConfig, and the
+# INITIAL AuthorizationPolicy binding Envoy to Authorino on /echo* only.
+# 09-mcp-authconfig.yaml later re-declares the SAME AuthorizationPolicy
+# (mcp-gw-extauthz) extended to both /echo* and /mcp*, and owns it from then
+# on.
+#
+# NEVER re-apply this file after 09: two manifests defining one object is
+# exactly how the MCP path once silently lost its ext_authz binding. Applying
+# the /echo*-only copy after 09 reverts the rule, `oc apply` reports
+# "configured" both times, and the only symptom is that the callout is never
+# invoked for MCP while every object involved looks healthy.
+# THE PROOF. Four stages, mapping onto the enforcement contract:
+#   authentication  -> C1 (anonymous here, to isolate the callout mechanism;
+#                      the real config uses jwt / oauth2Introspection, and
+#                      EXCH-P1..P6 already prove that side)
+#   metadata.http   -> the callout where the RFC 8693 exchange with RAR and
+#                      the Vault mint would run
+#   response.success.headers -> C4, injecting the minted credential into the
+#                      upstream call so the agent never holds it
+apiVersion: authorino.kuadrant.io/v1beta3
+kind: AuthConfig
+metadata:
+  name: mcp-callout
+  namespace: mcp-gateway-demo
+spec:
+  hosts:
+    # Was "*", which claimed EVERY host on the gateway and left the real MCP
+    # AuthConfig reporting "No hosts linked to the resource" with no hint
+    # that another AuthConfig had already taken the hostname. Narrowed to the
+    # in-cluster service name the /echo spike is actually addressed by, so
+    # RHGW-P4 and P5 stay reproducible while mcp.gateway.internal is free for
+    # the MCP path.
+    - mcp-gw-istio.mcp-gateway-demo.svc.cluster.local
+    - mcp-gw-istio.mcp-gateway-demo.svc
+  authentication:
+    anonymous:
+      anonymous: {}
+  metadata:
+    policy:
+      http:
+        url: http://rhgw-spike.mcp-gateway-demo.svc:8080/policy
+        method: GET
+        contentType: application/json
+        headers:
+          Accept:
+            value: application/json
+  authorization:
+    allowed:
+      patternMatching:
+        patterns:
+          - selector: auth.metadata.policy.decision
+            operator: eq
+            value: allow
+  response:
+    success:
+      headers:
+        x-db-password:
+          plain:
+            selector: auth.metadata.policy.credential
+        x-granted-scope:
+          plain:
+            selector: auth.metadata.policy.scope
+---
+# Envoy -> Authorino ext_authz binding for the /echo spike path.
+# 09-mcp-authconfig.yaml later extends this SAME object to /echo* and /mcp*
+# and owns it from then on; see the warning at the top of this file.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: mcp-gw-extauthz
+  namespace: mcp-gateway-demo
+spec:
+  targetRefs:
+    - kind: Gateway
+      group: gateway.networking.k8s.io
+      name: mcp-gw
+  action: CUSTOM
+  provider:
+    name: authorino
+  rules:
+    - to:
+        - operation:
+            paths: ["/echo*"]

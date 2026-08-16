@@ -1,0 +1,20 @@
+# Minimal Istio control plane. Registering the `istio` GatewayClass is all we
+# need from it; the MCP gateway operator attaches to a Gateway of that class.
+#
+# Resource requests are deliberately small. istiod's defaults (500m CPU,
+# 2Gi memory) do not fit on this TechZone cluster alongside ODF, and the
+# symptom is a Pending istiod with "Insufficient cpu" rather than anything
+# Istio-specific. A POC control plane serving one Gateway needs far less.
+apiVersion: sailoperator.io/v1
+kind: Istio
+metadata:
+  name: default
+spec:
+  namespace: istio-system
+  version: v1.28-latest
+  values:
+    pilot:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
